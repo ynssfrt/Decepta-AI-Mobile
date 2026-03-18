@@ -1,99 +1,140 @@
 import asyncio
 import logging
 import re
-import requests
+import json
+from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
-import string
 
 logger = logging.getLogger(__name__)
 
-class BaseScraper:
+class PlaywrightScraper:
     def __init__(self, url: str):
         self.url = str(url)
-        self.user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'
-        ]
         self.html_content = ""
+        self.text_content = ""
         self.soup = None
 
-    def _get_random_headers(self) -> dict:
-        import random
-        return {
-            'User-Agent': random.choice(self.user_agents),
-            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
-        }
-
     async def fetch_page(self):
-        if self.html_content:
-            return
         try:
-            loop = asyncio.get_event_loop()
-            logger.info(f"Canlı veri çekiliyor: {self.url}")
-            response = await loop.run_in_executor(
-                None, 
-                lambda: requests.get(self.url, headers=self._get_random_headers(), timeout=15)
-            )
-            if response.status_code == 200:
-                self.html_content = response.text
+            logger.info(f"Playwright başlatılıyor: {self.url}")
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+                
+                await page.goto(self.url, wait_until="domcontentloaded", timeout=45000)
+                
+                # Yavaş kaydırma (Lazy Load yorumları tetiklemek için)
+                for i in range(1, 6):
+                    await page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {i/5})")
+                    await page.wait_for_timeout(800)
+                
+                # Biraz daha bekle tam yüklensin
+                await page.wait_for_timeout(2000)
+
+                self.html_content = await page.content()
+                self.text_content = await page.evaluate("document.body.innerText")
                 self.soup = BeautifulSoup(self.html_content, "html.parser")
                 
-                # SCRIPT ve STYLE etiketlerini çöpe at (Arayüz kodlarını okumasın)
-                for script in self.soup(["script", "style", "noscript", "meta"]):
-                    script.extract()
-            else:
-                logger.warning(f"Bağlantı blokesi (Status: {response.status_code}).")
+                await browser.close()
         except Exception as e:
-            logger.error(f"Scraping Hatası: {str(e)}")
+            logger.error(f"Playwright Hatası: {str(e)}")
+
+    def _extract_from_jsonld(self):
+        """Standardize e-ticaret sitelerinin arka planda sakladığı tam kesin veri tabanını (JSON-LD) okur."""
+        if not self.soup: return None, None, None
+        
+        for script in self.soup.find_all("script", type="application/ld+json"):
+            try:
+                data = json.loads(script.string)
+                # JSON-LD içeriği bazen liste, bazen dikte olabilir
+                if isinstance(data, list):
+                    for item in data:
+                        if "aggregateRating" in item:
+                            agg = item["aggregateRating"]
+                            return float(agg.get("ratingValue", 0)), int(agg.get("reviewCount", 0)), int(agg.get("ratingCount", 0))
+                elif isinstance(data, dict):
+                    if "aggregateRating" in data:
+                        agg = data["aggregateRating"]
+                        return float(agg.get("ratingValue", 0)), int(agg.get("reviewCount", 0)), int(agg.get("ratingCount", 0))
+            except:
+                pass
+        return None, None, None
 
     def extract_score(self) -> float:
-        if not self.html_content:
-            return 4.5
-        match = re.search(r'(?<![0-9])([1-4][.,][0-9]|5[.,]0)(?![0-9])', self.html_content)
-        if match:
-            extracted = float(match.group(1).replace(',', '.'))
-            if 1.0 <= extracted <= 5.0:
-                return extracted
-        return 4.5
+        # 1. Öncelik: Kesin SEO verisi JSON-LD
+        score, rev_c, rat_c = self._extract_from_jsonld()
+        if score and 1.0 <= score <= 5.0:
+            return round(score, 1)
+            
+        # 2. Öncelik: Ekrandaki spesifik e-ticaret (Örn: Trendyol) elementleri
+        if self.soup:
+            trendyol_score = self.soup.find(class_='pr-in-rnr-v')
+            if trendyol_score:
+                try:
+                    return float(trendyol_score.text.strip().replace(',', '.'))
+                except: pass
+                
+        # 3. Öncelik: Regex ile ilk mantıklı skoru bul (Değerlendirme metni yakınlarındaki)
+        if self.text_content:
+            # "Değerlendirme" veya "Yorum" kelimesinden önceki ilk [1-5],[0-9] arası rakamı bulmaya çalış
+            match = re.search(r'([1-4][.,][0-9]|5[.,]0)[\s\S]{0,50}(?:değerlendirme|yorum|oy)', self.text_content.lower())
+            if match:
+                return float(match.group(1).replace(',', '.'))
+                
+        return 4.5 # Fallback
 
-    def extract_reviews_from_html(self) -> list:
+    def extract_metrics(self) -> tuple:
+        # Toplam Değerlendirme, Toplam Yazılı Yorum
+        score, rev_c, rat_c = self._extract_from_jsonld()
+        
+        total_ratings = rat_c if rat_c else 0
+        total_reviews = rev_c if rev_c else 0
+        
+        # Eğer JSON-LD boşsa veya eksikse, Regex ile sayfadan (Örn: "33 Değerlendirme") tara
+        if total_ratings == 0:
+            if self.soup:
+                tr_count = self.soup.find(class_='rvw-cnt-tx')
+                if tr_count:
+                    nums = re.findall(r'\d+', tr_count.text.replace('.', ''))
+                    if nums: total_ratings = int(nums[0])
+            
+            if total_ratings == 0 and self.text_content:
+                # Ekranda direkt "33 değerlendirme" arar
+                match = re.search(r'([0-9.,]+)\s+(?:değerlendirme|oy|kişi)', self.text_content.lower())
+                if match:
+                    try:
+                        total_ratings = int(match.group(1).replace('.', '').replace(',', ''))
+                    except: pass
+                    
+        # Yorum sayısı genelde değerlendirmeden farklıdır. Yoksa aynı alırız.
+        if total_reviews == 0 and self.text_content:
+            match = re.search(r'([0-9.,]+)\s+(?:yorum|soru)', self.text_content.lower())
+            if match:
+                try:
+                    total_reviews = int(match.group(1).replace('.', '').replace(',', ''))
+                except: pass
+                
+        # Garanti olması açısından mantık kontrölü
+        if total_reviews > total_ratings and total_ratings > 0:
+            total_reviews = total_ratings // 3
+            
+        return total_ratings, total_reviews
+
+    def extract_real_comments(self) -> list:
         if not self.soup:
             return []
             
-        reviews = []
-        # Sayfadaki tüm görünür metinleri al (Soup get_text() scriptleri sildikten sonra temizdir)
-        text_nodes = self.soup.stripped_strings
-        
-        for text in text_nodes:
-            # Sadece makul uzunluktaki ve kelimeler barındıran cümleleri al
-            if 30 <= len(text) <= 500 and text.count(' ') > 3:
-                # Kod kalıntılarını veya UI linklerini filtrele
-                text_lower = text.lower()
-                bad_words = ["ücretsiz kargo", "sepete ekle", "taksit seçenekleri", "giriş yap", "{", "}", "function", "var ", "let "]
-                if not any(bw in text_lower for bw in bad_words):
-                    reviews.append(text)
-                    
-        return list(set(reviews))
-    
-    def extract_ngrams(self, text_list, n=2, top_k=3):
-        if not text_list:
-            return []
+        comments = []
+        for script in self.soup(["script", "style", "noscript", "meta", "svg", "path"]):
+            script.extract()
             
-        words = []
-        for text in text_list:
-            # Harf ve rakam dışındakileri temizle
-            clean_text = re.sub(r'[^\w\s]', '', text).lower()
-            words.extend(clean_text.split())
-            
-        ngrams = []
-        if len(words) >= n:
-            for i in range(len(words) - n + 1):
-                ngram = " ".join(words[i:i+n])
-                # Çok kısa kelimelerden oluşan n-gramları alma (örneğin "ve bu")
-                if len(ngram) > 8:
-                    ngrams.append(ngram)
+        for text in self.soup.stripped_strings:
+            if 30 <= len(text) <= 600 and text.count(' ') > 3:
+                txt_lower = text.lower()
+                bad_words = ["ücretsiz", "kargo", "sepete ekle", "taksit", "giriş yap", "üye ol", "kategoriler", "hakkımızda", "yardım", "iletişim"]
+                if not any(bw in txt_lower for bw in bad_words):
+                    comments.append(text)
         
-        import collections
-        counter = collections.Counter(ngrams)
-        most_common = [item[0] for item in counter.most_common(top_k)]
-        return most_common or []
+        return list(set(comments))
