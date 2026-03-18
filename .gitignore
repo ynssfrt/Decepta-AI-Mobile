@@ -1,0 +1,81 @@
+# ===========================
+# Python
+# ===========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+.env
+.env.local
+*.log
+pip-log.txt
+.ipynb_checkpoints/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# ===========================
+# Flutter / Dart
+# ===========================
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains bare usefully configuration.
+# But you may want to ignore it if you use this repository
+# as a template for other projects.
+.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ===========================
+# Veri & Model Dosyaları
+# ===========================
+*.csv
+*.tsv
+*.parquet
+data/
+*.pt
+*.pth
+*.bin
+*.onnx
+models/saved/
