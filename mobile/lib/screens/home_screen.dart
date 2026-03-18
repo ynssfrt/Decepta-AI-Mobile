@@ -19,10 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _errorMessage;
   Map<String, dynamic>? _result;
   
-  // Emulator için localhost adresi
-  // Gerçek cihaz kullanılıyorsa PC'nin yerel IP'si girilmelidir (Örn: 192.168.1.5)
-  // final String baseUrl = 'http://10.0.2.2:8000/api/v1/scan'; // Android Emulator
-  final String baseUrl = 'http://127.0.0.1:8000/api/v1/scan'; // Web/iOS Simulator veya Windows
+  final String baseUrl = 'http://127.0.0.1:8000/api/v1/scan'; 
 
   Future<void> _startAnalysis() async {
     if (_urlController.text.trim().isEmpty) return;
@@ -32,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _errorMessage = null;
       _result = null;
       _progress = 0;
-      _currentStep = "Bağlantı Kuruluyor...";
+      _currentStep = "Tarayıcı motoru başlatılıyor...";
     });
 
     try {
@@ -57,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isAnalyzing = false;
         _errorMessage = e.toString().contains('Failed host lookup') 
           ? "Sunucu (FastAPI) bulunamadı. Lütfen Endpoint IP'sini kontrol edin." 
-          : "Hata: ${e.toString()}";
+          : "Hata: \${e.toString()}";
       });
     }
   }
@@ -99,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           setState(() {
             _isAnalyzing = false;
-            _errorMessage = "Bağlantı koptu: ${e.toString()}";
+            _errorMessage = "Bağlantı koptu: \${e.toString()}";
           });
         }
       }
@@ -206,6 +203,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ] 
               else if (_result != null) ...[
                 _buildResultCard(),
+                const SizedBox(height: 16),
+                _buildStatsCard(),
+                const SizedBox(height: 16),
+                _buildSuspiciousList(),
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
@@ -271,12 +272,100 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            "Yorumların %${_result!['bot_percentage']} oranı botlar tarafından üretilmiş olabilir.",
+            "Toplam \${_result!['total_reviews']} yorum içerisinde \${_result!['bot_percentage']}% oranında ağ ihlali bulundu.",
             textAlign: TextAlign.center,
             style: TextStyle(color: isDanger ? Colors.redAccent : Colors.greenAccent),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Sayfa İstatistikleri", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _statRow("Görünen Puan:", "\${_result!['platform_score']}", Colors.white),
+          _statRow("Toplam Değerlendiren:", "\${_result!['total_ratings']}", Colors.white),
+          _statRow("Toplam Yorum Sayısı:", "\${_result!['total_reviews']}", Colors.white),
+          _statRow("Şüpheli Yorum:", "\${(_result!['suspicious_reviews'] as List).length}", Colors.redAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _statRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white70)),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuspiciousList() {
+    List suspicious = _result!['suspicious_reviews'] ?? [];
+    if (suspicious.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.greenAccent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.greenAccent.withOpacity(0.5))
+        ),
+        child: const Text(
+          "Şüpheli bir yorum tespit edilemedi. Ürün organik görünüyor.",
+          style: TextStyle(color: Colors.greenAccent),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12.0),
+          child: Text("Tespit Edilen İhlaller", style: TextStyle(color: Colors.redAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+        ...suspicious.map((item) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.3))
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "\"${item['text']}\"",
+                  style: const TextStyle(color: Colors.white, fontStyle: FontStyle.italic, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "🕵️ \${item['reason']}",
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 }
