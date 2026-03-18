@@ -18,10 +18,21 @@ class PlaywrightScraper:
         try:
             logger.info(f"Playwright başlatılıyor: {self.url}")
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--disable-blink-features=AutomationControlled']
                 )
+                
+                # Context oluşturarak ek izolasyon ve yetki tanımlaması yapalım
+                context = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080}
+                )
+                
+                # webdriver bayrağını sil
+                await context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                
+                page = await context.new_page()
                 
                 await page.goto(self.url, wait_until="domcontentloaded", timeout=45000)
                 
