@@ -30,7 +30,6 @@ class PlaywrightScraper:
                     await page.evaluate(f"window.scrollTo(0, document.body.scrollHeight * {i/5})")
                     await page.wait_for_timeout(800)
                 
-                # Biraz daha bekle tam yüklensin
                 await page.wait_for_timeout(2000)
 
                 self.html_content = await page.content()
@@ -42,13 +41,10 @@ class PlaywrightScraper:
             logger.error(f"Playwright Hatası: {str(e)}")
 
     def _extract_from_jsonld(self):
-        """Standardize e-ticaret sitelerinin arka planda sakladığı tam kesin veri tabanını (JSON-LD) okur."""
         if not self.soup: return None, None, None
-        
         for script in self.soup.find_all("script", type="application/ld+json"):
             try:
                 data = json.loads(script.string)
-                # JSON-LD içeriği bazen liste, bazen dikte olabilir
                 if isinstance(data, list):
                     for item in data:
                         if "aggregateRating" in item:
@@ -58,17 +54,14 @@ class PlaywrightScraper:
                     if "aggregateRating" in data:
                         agg = data["aggregateRating"]
                         return float(agg.get("ratingValue", 0)), int(agg.get("reviewCount", 0)), int(agg.get("ratingCount", 0))
-            except:
-                pass
+            except: pass
         return None, None, None
 
     def extract_score(self) -> float:
-        # 1. Öncelik: Kesin SEO verisi JSON-LD
         score, rev_c, rat_c = self._extract_from_jsonld()
         if score and 1.0 <= score <= 5.0:
             return round(score, 1)
             
-        # 2. Öncelik: Ekrandaki spesifik e-ticaret (Örn: Trendyol) elementleri
         if self.soup:
             trendyol_score = self.soup.find(class_='pr-in-rnr-v')
             if trendyol_score:
@@ -76,39 +69,32 @@ class PlaywrightScraper:
                     return float(trendyol_score.text.strip().replace(',', '.'))
                 except: pass
                 
-        # 3. Öncelik: Regex ile ilk mantıklı skoru bul (Değerlendirme metni yakınlarındaki)
         if self.text_content:
-            # "Değerlendirme" veya "Yorum" kelimesinden önceki ilk [1-5],[0-9] arası rakamı bulmaya çalış
             match = re.search(r'([1-4][.,][0-9]|5[.,]0)[\s\S]{0,50}(?:değerlendirme|yorum|oy)', self.text_content.lower())
             if match:
                 return float(match.group(1).replace(',', '.'))
                 
-        return 4.5 # Fallback
+        return 4.5 
 
     def extract_metrics(self) -> tuple:
-        # Toplam Değerlendirme, Toplam Yazılı Yorum
         score, rev_c, rat_c = self._extract_from_jsonld()
         
         total_ratings = rat_c if rat_c else 0
         total_reviews = rev_c if rev_c else 0
         
-        # Eğer JSON-LD boşsa veya eksikse, Regex ile sayfadan (Örn: "33 Değerlendirme") tara
         if total_ratings == 0:
             if self.soup:
                 tr_count = self.soup.find(class_='rvw-cnt-tx')
                 if tr_count:
                     nums = re.findall(r'\d+', tr_count.text.replace('.', ''))
                     if nums: total_ratings = int(nums[0])
-            
             if total_ratings == 0 and self.text_content:
-                # Ekranda direkt "33 değerlendirme" arar
                 match = re.search(r'([0-9.,]+)\s+(?:değerlendirme|oy|kişi)', self.text_content.lower())
                 if match:
                     try:
                         total_ratings = int(match.group(1).replace('.', '').replace(',', ''))
                     except: pass
                     
-        # Yorum sayısı genelde değerlendirmeden farklıdır. Yoksa aynı alırız.
         if total_reviews == 0 and self.text_content:
             match = re.search(r'([0-9.,]+)\s+(?:yorum|soru)', self.text_content.lower())
             if match:
@@ -116,7 +102,6 @@ class PlaywrightScraper:
                     total_reviews = int(match.group(1).replace('.', '').replace(',', ''))
                 except: pass
                 
-        # Garanti olması açısından mantık kontrölü
         if total_reviews > total_ratings and total_ratings > 0:
             total_reviews = total_ratings // 3
             
@@ -127,13 +112,31 @@ class PlaywrightScraper:
             return []
             
         comments = []
-        for script in self.soup(["script", "style", "noscript", "meta", "svg", "path"]):
+        for script in self.soup(["script", "style", "noscript", "meta", "svg", "path", "nav", "footer"]):
             script.extract()
             
         for text in self.soup.stripped_strings:
-            if 30 <= len(text) <= 600 and text.count(' ') > 3:
+            text = str(text).strip()
+            # 25 karakter altı yorum olmaz. 600 üstü destandır bozmasın. En az 3 kelime olmalı.
+            if 25 <= len(text) <= 600 and text.count(' ') > 3:
+                
+                # Başlık formatındaki ögeleri (Ürün Kaydırıcı isimleri) yok say: "Xiaomi Redmi Note 12 Pro..."
+                if text.istitle():
+                    continue
+                
                 txt_lower = text.lower()
-                bad_words = ["ücretsiz", "kargo", "sepete ekle", "taksit", "giriş yap", "üye ol", "kategoriler", "hakkımızda", "yardım", "iletişim"]
+                
+                # E-Ticaret sistem çerezleri, uyarıları ve link hataları! Bunlar yorum DEĞİL!
+                bad_words = [
+                    "tanımlama bilgileri", "çerez", "kabul et", "aydınlatma metni", 
+                    "ürünü alanlar", "bunları da aldı", "taksit", "ürün özellikleri", 
+                    "satıcıya sor", "tükendi", "stok", "sepete ekle", "kargo", "ücretsiz", 
+                    "garanti", "şartlar", "kategoriler", "hakkımızda", "iletisim", "fiyatı",
+                    "fırsat", "kampanya", "alışveriş", "hemen al", "indirim", "kayıt ol",
+                    "şifremi unuttum", "gizlilik politikası", "mesafeli satış", "kredi kartı"
+                ]
+                
+                # Eğer bu kelimelerden HİÇBİRİ yoksa, organik yoruma benziyordur
                 if not any(bw in txt_lower for bw in bad_words):
                     comments.append(text)
         
