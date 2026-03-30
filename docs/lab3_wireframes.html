@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>LAB 3 Wireframe - Decepta AI Mobile</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f0f0f0; 
+            margin: 0; 
+            padding: 20px; 
+            color: #333;
+        }
+        .document-container { 
+            max-width: 1050px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 40px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+        h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px;}
+        .scenario-desc { margin-bottom: 40px; background: #f9f9f9; padding: 20px; border-left: 5px solid #333; }
+        .wireframes-wrapper { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+            margin-top: 40px; 
+        }
+        
+        .screen-container { width: 300px; display: flex; flex-direction: column; align-items: center; }
+        .screen-title { font-weight: bold; margin-bottom: 10px; font-size: 1.1em; text-align: center; }
+        
+        /* Phone outline */
+        .phone { 
+            width: 100%; 
+            height: 600px; 
+            border: 4px solid #222; 
+            border-radius: 25px; 
+            position: relative; 
+            background: #fff; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+        
+        /* Mobile UI Elements */
+        .header { 
+            background: #e0e0e0; 
+            padding: 15px; 
+            text-align: center; 
+            border-bottom: 2px solid #ccc; 
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+        .content { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; gap: 15px; }
+        
+        .wire-image { 
+            width: 100%; 
+            height: 120px; 
+            background: #eee; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: #888; 
+            border: 2px dashed #bbb; 
+        }
+        .wire-image.circle {
+            width: 80px; height: 80px; border-radius: 50%; margin: 0 auto;
+        }
+        
+        .wire-text-block { display: flex; flex-direction: column; gap: 8px;}
+        .wire-text { background: #ddd; height: 12px; border-radius: 4px; width: 100%; }
+        .wire-text.short { width: 60%; }
+        .wire-text.title { height: 18px; background: #ccc; margin-bottom: 10px;}
+        
+        .wire-btn { 
+            background: #444; 
+            color: white; 
+            padding: 12px; 
+            text-align: center; 
+            border-radius: 8px; 
+            font-weight: bold; 
+        }
+        .wire-btn.outline {
+            background: transparent; color: #444; border: 2px solid #444;
+        }
+        
+        .wire-input { 
+            border: 2px solid #aaa; 
+            padding: 12px; 
+            border-radius: 8px; 
+            color: #777; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .wire-list-item { 
+            border: 1px solid #ccc; 
+            padding: 12px; 
+            border-radius: 8px; 
+            display: flex; 
+            gap: 15px; 
+            align-items: center;
+        }
+        .wire-avatar { min-width: 40px; height: 40px; background: #ccc; border-radius: 50%; }
+        
+        .wire-fab { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 20px; 
+            width: 56px; 
+            height: 56px; 
+            border-radius: 50%; 
+            background: #222; 
+            color: white; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-size: 28px; 
+            font-weight: bold; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .tab-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            background: #eee;
+            border-top: 1px solid #ccc;
+        }
+        .tab-icon {
+            width: 24px; height: 24px; background: #aaa; border-radius: 4px;
+        }
+        .tab-icon.active { background: #444; }
+        
+        /* Arrows between screens */
+        .arrow-container { display: flex; align-items: center; justify-content: center; width: 40px; }
+        .arrow { font-size: 50px; color: #333; margin-top: 250px; }
+        
+        @media print {
+            body { background: white; padding: 0; }
+            .document-container { box-shadow: none; padding: 0; max-width: 100%; }
+            .arrow { margin-top: 250px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="document-container">
+        <h1>LAB 3: Mobil Uygulama Wireframe (Decepta AI)</h1>
+        
+        <div class="scenario-desc">
+            <h3>Kullanıcı Senaryosu ve Akış Özeti</h3>
+            <p><strong>Amaç:</strong> Kullanıcının sahte yorum tespiti yapmak için uygulamayı kullanma akışını düşük detaylı taslaklarla (wireframe) modelledik.</p>
+            <p><strong>Senaryo:</strong> Kullanıcı uygulamaya girer ve daha önce analiz ettiği ürünlerin geçmişini (<strong>Liste / Ana Ekran</strong>) inceler. Yeni bir ürün sorgulamak istediğinde (+) butonuna basarak giriş sayfasına geçer (<strong>Veri Ekleme Ekranı</strong>). Burada e-ticaret bağlantısını yapıştırıp analizi başlatır. Sistem işlemi tamamladığında, ürünün detaylı güven skorunu ve siber analiz sonucunu raporda sergiler (<strong>Detay Ekranı</strong>).</p>
+        </div>
+
+        <div class="wireframes-wrapper">
+            
+            <!-- SCREEN 1: LIST / HOME -->
+            <div class="screen-container">
+                <div class="screen-title">1. Liste / Ana Ekran</div>
+                <div class="phone">
+                    <div class="header">
+                        <span>&#9776;</span>
+                        <span>Decepta AI</span>
+                        <span>&#128269;</span>
+                    </div>
+                    <div class="content">
+                        <div class="wire-text title" style="width: 80%;"></div>
+                        
+                        <div class="wire-list-item">
+                            <div class="wire-avatar"></div>
+                            <div class="wire-text-block" style="flex-grow: 1;">
+                                <div class="wire-text"></div>
+                                <div class="wire-text short"></div>
+                            </div>
+                        </div>
+                        <div class="wire-list-item">
+                            <div class="wire-avatar"></div>
+                            <div class="wire-text-block" style="flex-grow: 1;">
+                                <div class="wire-text"></div>
+                                <div class="wire-text short"></div>
+                            </div>
+                        </div>
+                        <div class="wire-list-item">
+                            <div class="wire-avatar"></div>
+                            <div class="wire-text-block" style="flex-grow: 1;">
+                                <div class="wire-text"></div>
+                                <div class="wire-text short"></div>
+                            </div>
+                        </div>
+                        <div class="wire-list-item">
+                            <div class="wire-avatar"></div>
+                            <div class="wire-text-block" style="flex-grow: 1;">
+                                <div class="wire-text"></div>
+                                <div class="wire-text short"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="wire-fab">+</div>
+                    <div class="tab-bar">
+                        <div class="tab-icon active"></div>
+                        <div class="tab-icon"></div>
+                        <div class="tab-icon"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-style: italic; color: #666; font-size: 0.9em; text-align: center;">Geçmiş analizleri listeler. Yeni analiz için FAB (+) butonuna basılır.</div>
+            </div>
+
+            <div class="arrow-container"><div class="arrow">&#10142;</div></div>
+
+            <!-- SCREEN 2: DATA ENTRY -->
+            <div class="screen-container">
+                <div class="screen-title">2. Veri Ekleme Ekranı</div>
+                <div class="phone">
+                    <div class="header">
+                        <span>&lt; Geri</span>
+                        <span>Yeni Analiz</span>
+                        <span></span>
+                    </div>
+                    <div class="content" style="justify-content: center;">
+                        <div class="wire-image circle">Logo</div>
+                        
+                        <div style="text-align: center; margin: 20px 0;">
+                            <div class="wire-text title" style="margin: 0 auto; margin-bottom: 10px;"></div>
+                            <div class="wire-text short" style="margin: 0 auto;"></div>
+                        </div>
+
+                        <div style="margin-top: 30px;">
+                            <div style="font-size: 0.9em; margin-bottom: 8px; font-weight: bold; color: #555;">Ürün Bağlantısı (URL)</div>
+                            <div class="wire-input">
+                                <span>https://...</span>
+                                <span>&#128203;</span>
+                            </div>
+                        </div>
+                        
+                        <div class="wire-btn" style="margin-top: 30px;">Analizi Başlat</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-style: italic; color: #666; font-size: 0.9em; text-align: center;">Kullanıcı e-ticaret linkini "Veri Ekleme" formuna yapıştırır.</div>
+            </div>
+
+            <div class="arrow-container"><div class="arrow">&#10142;</div></div>
+
+            <!-- SCREEN 3: DETAILS -->
+            <div class="screen-container">
+                <div class="screen-title">3. Detay Ekranı</div>
+                <div class="phone">
+                    <div class="header">
+                        <span>&lt; Kapat</span>
+                        <span>Analiz Raporu</span>
+                        <span>&#8942;</span>
+                    </div>
+                    <div class="content">
+                        <!-- Score Card -->
+                        <div class="wire-image" style="height: 140px; flex-direction: column; background: #e8e8e8; border: 2px solid #555;">
+                            <div style="font-size: 1.1em; color: #666;">Gerçek Güven Skoru</div>
+                            <div style="font-size: 2.5em; font-weight: bold; color: #222; margin-top: 5px;">2.1 / 5.0</div>
+                        </div>
+                        
+                        <div class="wire-text title" style="margin-top: 10px; width: 50%;"></div>
+                        
+                        <!-- Report Detail Blocks -->
+                        <div class="wire-list-item" style="flex-direction: column; align-items: flex-start; background: #fafafa;">
+                            <div style="font-weight: bold; font-size: 0.9em;">Bot Tespiti (%65 Şüpheli)</div>
+                            <div class="wire-text-block" style="width: 100%; margin-top: 5px;">
+                                <div class="wire-text"></div>
+                                <div class="wire-text"></div>
+                                <div class="wire-text short"></div>
+                            </div>
+                        </div>
+
+                        <div class="wire-list-item" style="flex-direction: column; align-items: flex-start; background: #fafafa;">
+                            <div style="font-weight: bold; font-size: 0.9em;">AI Kelime Analizi</div>
+                            <div style="display: flex; gap: 10px; margin-top: 5px; width: 100%;">
+                                <div class="wire-text" style="width: 30%;"></div>
+                                <div class="wire-text" style="width: 40%;"></div>
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 5px; width: 100%;">
+                                <div class="wire-text" style="width: 50%;"></div>
+                                <div class="wire-text" style="width: 20%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="wire-btn outline" style="margin-top: auto;">Raporu Kaydet / Paylaş</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; font-style: italic; color: #666; font-size: 0.9em; text-align: center;">Yapay zeka analizinin sonuçlarını, skorunu ve nedenlerini gösterir.</div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
