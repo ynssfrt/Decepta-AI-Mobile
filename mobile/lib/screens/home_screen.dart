@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     try {
       final response = await http.post(
-        Uri.parse('$baseApiUrl/scan'),
+        Uri.parse('$baseApiUrl/scan/'), // FastAPI 307 redirect hatasını önlemek için '/' eklendi
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"url": _urlController.text.trim()}),
       );
@@ -148,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _historyRecords = data['value'] ?? [];
+          _historyRecords = data is List ? data : [];
           _isLoadingHistory = false;
         });
       } else {
