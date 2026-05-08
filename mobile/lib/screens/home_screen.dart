@@ -28,7 +28,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   String? _historyError;
 
   // Use 10.0.2.2 for Android Emulator, 127.0.0.1 for iOS Simulator/Web
-  final String baseApiUrl = 'http://127.0.0.1:8000/api/v1'; 
+  // Android Emülatör için 10.0.2.2 kullanılır (Bilgisayarın localhost'una erişmek için)
+  // iOS Simülatör veya Web için 127.0.0.1 kullanabilirsiniz.
+  final String baseApiUrl = 'http://10.0.2.2:8000/api/v1'; 
 
   @override
   void initState() {
