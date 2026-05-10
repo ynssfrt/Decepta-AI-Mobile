@@ -227,7 +227,7 @@ const String scraperJsCode = r'''
             let hbSuccess = false;
             let hbPhotoFound = false;
             
-            // YÖNTEM 0: bodyText'te spesifik tab etiketlerini ara (EN GÜVENİLİR)
+            // YÖNTEM 0: bodyText'te spesifik tab etiketlerini ara
             const yorumluMatch = bodyText.match(/Yorumlu\s*\((\d[\d.]*)\)/);
             if (yorumluMatch) {
                 commentCount = parseInt(yorumluMatch[1].replace(/\./g, ''));
@@ -257,33 +257,37 @@ const String scraperJsCode = r'''
                 } catch(e) {}
             }
             
-            // YÖNTEM 2: Script bloğundan spesifik anahtarları çek
-            if (!hbSuccess || !hbPhotoFound) {
-                const scripts = document.querySelectorAll('script');
-                for (let i = 0; i < scripts.length; i++) {
-                    const txt = scripts[i].textContent || '';
-                    if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
-                        const stateIndex = txt.indexOf('__HB_REVIEWS_INITIAL_STATE__');
-                        const stateTxt = txt.substring(stateIndex);
-                        
-                        if (!hbSuccess) {
-                            const commentMatch = stateTxt.match(/"(?:commentCount|approvedCommentCount|approvedReviewCount|textReviewCount|writtenReviewCount)"\s*:\s*(\d+)/);
-                            if (commentMatch) {
-                                commentCount = parseInt(commentMatch[1]);
+            // YÖNTEM 2: Script bloğu (HER ZAMAN fotoğraf için çalışır)
+            const scripts = document.querySelectorAll('script');
+            for (let i = 0; i < scripts.length; i++) {
+                const txt = scripts[i].textContent || '';
+                if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
+                    const stateIndex = txt.indexOf('__HB_REVIEWS_INITIAL_STATE__');
+                    const stateTxt = txt.substring(stateIndex);
+                    
+                    if (!hbPhotoFound) {
+                        const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount|mediaCount|withMediaCount|photoReviewCount)"\s*:\s*(\d+)/);
+                        if (mediaMatch) {
+                            window.__hb_photoCount = parseInt(mediaMatch[1]);
+                            hbPhotoFound = true;
+                        }
+                    }
+                    
+                    if (!hbSuccess) {
+                        const commentMatch = stateTxt.match(/"(?:commentCount|approvedCommentCount|textReviewCount|writtenReviewCount)"\s*:\s*(\d+)/);
+                        if (commentMatch) {
+                            commentCount = parseInt(commentMatch[1]);
+                            hbSuccess = true;
+                        } else {
+                            const totalMatch = stateTxt.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                            if (totalMatch) {
+                                commentCount = parseInt(totalMatch[1]);
                                 hbSuccess = true;
                             }
                         }
-                        
-                        if (!hbPhotoFound) {
-                            const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount|mediaCount|withMediaCount|photoReviewCount|mediaReviewCount)"\s*:\s*(\d+)/);
-                            if (mediaMatch) {
-                                window.__hb_photoCount = parseInt(mediaMatch[1]);
-                                hbPhotoFound = true;
-                            }
-                        }
-                        
-                        break;
                     }
+                    
+                    break;
                 }
             }
             
