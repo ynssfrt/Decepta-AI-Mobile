@@ -290,9 +290,11 @@ const String scraperJsCode = r'''
                                 hbSuccess = true;
                             }
                             
-                            const mediaMatch = prBlock.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
-                            if (mediaMatch && typeof window.__hb_photoCount === 'undefined') {
-                                window.__hb_photoCount = parseInt(mediaMatch[1]);
+                            if (!foundFoto) {
+                                const mediaMatch = prBlock.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
+                                if (mediaMatch) {
+                                    window.__hb_photoCount = parseInt(mediaMatch[1]);
+                                }
                             }
                         }
                         
@@ -301,17 +303,10 @@ const String scraperJsCode = r'''
                 }
             }
             
-            if (commentCount === 0) {
-                const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
-                let withText = 0;
-                reviewCards.forEach(card => { if ((card.innerText || '').trim().length > 60) withText++; });
-                if (withText > 0) commentCount = withText;
-            }
-            
-            if (commentCount === 0) { commentCount = comments.filter(c => c !== '[Sadece Görsel]' && c.length > 5).length; }
-            if (commentCount === 0 && ratingsCount > 0) { commentCount = comments.length > 0 ? comments.length : ratingsCount; }
+            // HEPSİBURADA İÇİN FALLBACK YOK!
+            // DOM'daki yorum kartlarını veya görselleri saymak tutarsız sonuç verir.
         }
-        if (commentCount === 0) commentCount = comments.length;
+        if (commentCount === 0 && !isHepsiburada) commentCount = comments.length;
 
         let photoReviewsCount = 0;
         if (isHepsiburada && typeof window.__hb_photoCount !== 'undefined') {
@@ -328,52 +323,8 @@ const String scraperJsCode = r'''
             }
         }
 
-        if (photoReviewsCount === 0) {
+        if (photoReviewsCount === 0 && !isHepsiburada) {
             photoReviewsCount = detailedReviews.filter(r => r.images && r.images.length > 0).length;
-        }
-        
-        if (photoReviewsCount === 0) {
-            const gallerySelectors = ['[class*="MediaGallery"]', '[class*="mediaGallery"]', '[class*="user-media"]', '[class*="userMedia"]', '[class*="CustomerMedia"]', '[class*="customerMedia"]', '[class*="review-media-gallery"]'];
-            let galleryEl = null;
-            for (const sel of gallerySelectors) {
-                galleryEl = document.querySelector(sel);
-                if (galleryEl) break;
-            }
-            if (!galleryEl) {
-                const allHeadings = document.querySelectorAll('h2, h3, h4, div, span');
-                for (const heading of allHeadings) {
-                    const text = (heading.innerText || '').trim();
-                    if (text.match(/kullanıcı\s*(fotoğraf|foto|medya)/i) || text.match(/müşteri\s*(fotoğraf|foto)/i)) {
-                        galleryEl = heading.parentElement;
-                        break;
-                    }
-                }
-            }
-            if (galleryEl) {
-                const galleryImgs = galleryEl.querySelectorAll('img');
-                const uniqueGallerySrcs = new Set();
-                galleryImgs.forEach(img => {
-                    const src = img.src || img.dataset?.src || '';
-                    if (src && !src.startsWith('data:') && !src.includes('avatar') && !src.includes('icon')) {
-                        const w = img.naturalWidth || img.width || 100;
-                        if (w >= 40) { uniqueGallerySrcs.add(src); }
-                    }
-                });
-                photoReviewsCount = uniqueGallerySrcs.size;
-            }
-        }
-        
-        if (photoReviewsCount === 0) {
-            const reviewSections = document.querySelectorAll('[class*="review"] img, [class*="Review"] img, [class*="rvw"] img, [class*="comment"] img, [class*="Comment"] img');
-            const uniqueSrcs = new Set();
-            reviewSections.forEach(img => {
-                const src = img.src || '';
-                if (src && !src.includes('avatar') && !src.includes('star') && !src.includes('icon') && !src.includes('svg') && !src.startsWith('data:')) {
-                    const w = img.naturalWidth || img.width || 100;
-                    if (w >= 40) { uniqueSrcs.add(src); }
-                }
-            });
-            if (uniqueSrcs.size > 0) { photoReviewsCount = uniqueSrcs.size; }
         }
 
         // MANTIK KONTROLÜ: Fotoğraflı yorum, toplam sayıyı aşamaz
