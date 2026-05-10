@@ -223,16 +223,20 @@ const String scraperJsCode = r'''
         }
 
         if (commentCount === 0 && isHepsiburada) {
-            // YÖNTEM 1: Sadece __HB_REVIEWS_INITIAL_STATE__ bloğu içinde ara
-            const html = document.documentElement.outerHTML || '';
-            const stateMatch = html.match(/window\.__HB_REVIEWS_INITIAL_STATE__\s*=\s*([\s\S]+?)<\/script>/);
-            if (stateMatch) {
-                const stateStr = stateMatch[1];
-                const totalMatch = stateStr.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                if (totalMatch) commentCount = parseInt(totalMatch[1]);
-                const mediaMatch = stateStr.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
-                if (mediaMatch) window.__hb_photoCount = parseInt(mediaMatch[1]);
-            }
+            // YÖNTEM 1: WebView içinden doğrudan window objesini oku (Mobile Webview izole değildir)
+            try {
+                if (window.__HB_REVIEWS_INITIAL_STATE__) {
+                    var state = window.__HB_REVIEWS_INITIAL_STATE__;
+                    if (state.productReviews) {
+                        commentCount = parseInt(state.productReviews.totalReviewCount || 0);
+                        window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount || 0);
+                    } else if (state.reviews && state.reviews.summary) {
+                        commentCount = parseInt(state.reviews.summary.totalReviewCount || 0);
+                        window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount || 0);
+                    }
+                }
+            } catch(e) {}
+
             if (commentCount === 0) {
                 const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
                 if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
