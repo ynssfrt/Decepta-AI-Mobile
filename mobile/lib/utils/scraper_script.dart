@@ -223,30 +223,15 @@ const String scraperJsCode = r'''
         }
 
         if (commentCount === 0 && isHepsiburada) {
-            // YÖNTEM 1: HTML'de regex ile API verilerini ara
+            // YÖNTEM 1: Sadece __HB_REVIEWS_INITIAL_STATE__ bloğu içinde ara
             const html = document.documentElement.outerHTML || '';
-            const totalReviewMatch = html.match(/"totalReviewCount"\s*:\s*(\d+)/);
-            if (totalReviewMatch) commentCount = parseInt(totalReviewMatch[1]);
-            const mediaReviewMatch = html.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
-            if (mediaReviewMatch) window.__hb_photoCount = parseInt(mediaReviewMatch[1]);
-
-            // YÖNTEM 2: Script içi json parse
-            if (commentCount === 0) {
-                const scripts = document.querySelectorAll('script');
-                for (let i = 0; i < scripts.length; i++) {
-                    const txt = scripts[i].textContent || '';
-                    if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
-                        try {
-                            const m = txt.match(/window\.__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{.+?\});/);
-                            if (m) {
-                                const state = JSON.parse(m[1]);
-                                if (state?.reviews?.summary?.totalReviewCount) commentCount = parseInt(state.reviews.summary.totalReviewCount);
-                                if (state?.reviews?.summary?.approvedMediaReviewCount) window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount);
-                            }
-                        } catch(e) {}
-                        break;
-                    }
-                }
+            const stateMatch = html.match(/window\.__HB_REVIEWS_INITIAL_STATE__\s*=\s*([\s\S]+?)<\/script>/);
+            if (stateMatch) {
+                const stateStr = stateMatch[1];
+                const totalMatch = stateStr.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                if (totalMatch) commentCount = parseInt(totalMatch[1]);
+                const mediaMatch = stateStr.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
+                if (mediaMatch) window.__hb_photoCount = parseInt(mediaMatch[1]);
             }
             if (commentCount === 0) {
                 const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
