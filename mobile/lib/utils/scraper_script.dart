@@ -261,8 +261,23 @@ const String scraperJsCode = r'''
             }
 
             if (!hbSuccess) {
-                const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
-                if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
+                let safeText = bodyText;
+                const reviewContainer = document.querySelector('[class*="ReviewList"], [class*="hermes-Review"], [id*="reviews"], [class*="Comments"]');
+                if (reviewContainer) {
+                    safeText = reviewContainer.innerText || '';
+                } else {
+                    const cutoff = safeText.search(/Benzer Ürünler|Önerilenler|Bunları da beğenebilirsiniz|Müşteriler bunları da aldı/i);
+                    if (cutoff > 0) safeText = safeText.substring(0, cutoff);
+                }
+
+                const yorumPatterns = [
+                    /[Yy]orum(?:lu|lar)?\s*\(?(\d[\d.]*)\)?/,
+                    /(\d[\d.]*)\s*(?:Yorum|Değerlendirme)/i
+                ];
+                for (const pat of yorumPatterns) {
+                    const m = safeText.match(pat);
+                    if (m) { commentCount = parseInt(m[1].replace(/\./g, '')); break; }
+                }
                 
                 if (commentCount === 0) {
                     const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
@@ -282,8 +297,23 @@ const String scraperJsCode = r'''
             photoReviewsCount = window.__hb_photoCount;
         }
         if (photoReviewsCount === 0 && isHepsiburada) {
-            const fotoBody = bodyText.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/);
-            if (fotoBody) { photoReviewsCount = parseInt(fotoBody[1].replace(/\./g, '')); }
+            let safeText = bodyText;
+            const reviewContainer = document.querySelector('[class*="ReviewList"], [class*="hermes-Review"], [id*="reviews"], [class*="Comments"]');
+            if (reviewContainer) {
+                safeText = reviewContainer.innerText || '';
+            } else {
+                const cutoff = safeText.search(/Benzer Ürünler|Önerilenler|Bunları da beğenebilirsiniz|Müşteriler bunları da aldı/i);
+                if (cutoff > 0) safeText = safeText.substring(0, cutoff);
+            }
+
+            const fotoPatterns = [
+                /[Ff]oto(?:ğ|g)rafl[ıi]\s*(?:Yorum(?:lar)?\s*)?\(?(\d[\d.]*)\)?/,
+                /(\d[\d.]*)\s*(?:adet\s*)?fotoğraflı/i
+            ];
+            for (const pat of fotoPatterns) {
+                const m = safeText.match(pat);
+                if (m) { photoReviewsCount = parseInt(m[1].replace(/\./g, '')); break; }
+            }
         }
         if (photoReviewsCount === 0 && !isHepsiburada) {
             const photoPatterns = [
