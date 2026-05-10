@@ -236,6 +236,21 @@ const String scraperJsCode = r'''
                     }
                 }
             } catch(e) {}
+            
+            // YÖNTEM 2: Hepsiburada performanstan dolayı window objesini silmişse, ham metin üzerinden regex ile oku
+            if (commentCount === 0) {
+                const scripts = document.querySelectorAll('script');
+                for (let i = 0; i < scripts.length; i++) {
+                    const txt = scripts[i].textContent || '';
+                    if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
+                        const totalMatch = txt.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                        if (totalMatch) commentCount = parseInt(totalMatch[1]);
+                        const mediaMatch = txt.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
+                        if (mediaMatch) window.__hb_photoCount = parseInt(mediaMatch[1]);
+                        if (commentCount > 0) break;
+                    }
+                }
+            }
 
             if (commentCount === 0) {
                 const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
