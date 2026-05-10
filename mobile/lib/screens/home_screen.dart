@@ -65,14 +65,55 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         NavigationDelegate(
           onPageFinished: (String url) async {
             if (_isAnalyzing && _currentStep == "Sayfa yükleniyor...") {
+              
+              // Trendyol: Ürün sayfasındaysak /yorumlar sayfasına yönlendir
+              if (url.contains('trendyol.com') && !url.contains('/yorumlar')) {
+                final cleanUrl = url.split('?')[0].split('#')[0];
+                final reviewsUrl = '$cleanUrl/yorumlar';
+                setState(() {
+                  _currentStep = "Yorumlar sayfasına geçiliyor...";
+                  _progress = 0.15;
+                });
+                _webViewController.loadRequest(Uri.parse(reviewsUrl));
+                return; // onPageFinished tekrar tetiklenecek
+              }
+              
               setState(() {
                 _currentStep = "Veriler ayıklanıyor...";
                 _progress = 0.3;
               });
               
-              await Future.delayed(const Duration(seconds: 4));
+              // Hepsiburada: Yorumlar sekmesine tıkla
+              if (url.contains('hepsiburada.com')) {
+                setState(() { _currentStep = "Yorumlar sekmesine geçiliyor..."; });
+                await _webViewController.runJavaScript('''
+                  (function() {
+                    var clicked = false;
+                    var allTabs = document.querySelectorAll('[role="tab"], [class*="Tab"], [class*="tab"], button, a');
+                    for (var i = 0; i < allTabs.length; i++) {
+                      var text = (allTabs[i].innerText || '').trim().toLowerCase();
+                      if (text.indexOf('değerlendirme') !== -1 || text.indexOf('yorum') !== -1) {
+                        allTabs[i].click();
+                        clicked = true;
+                        break;
+                      }
+                    }
+                    if (!clicked) { window.scrollTo(0, document.body.scrollHeight * 0.6); }
+                  })();
+                ''');
+                // Yorumların AJAX ile yüklenmesini bekle
+                await Future.delayed(const Duration(seconds: 5));
+              } else {
+                // Trendyol yorumlar sayfası veya diğer siteler
+                await Future.delayed(const Duration(seconds: 4));
+              }
               
               if (!mounted || !_isAnalyzing) return;
+              
+              setState(() {
+                _currentStep = "Yapay zeka verileri ayıklıyor...";
+                _progress = 0.4;
+              });
               
               try {
                 final Object resultObj = await _webViewController.runJavaScriptReturningResult(scraperJsCode);

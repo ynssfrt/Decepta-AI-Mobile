@@ -287,6 +287,12 @@ const String scraperJsCode = r'''
             if (uniqueSrcs.size > 0) { photoReviewsCount = uniqueSrcs.size; }
         }
 
+        // MANTIK KONTROLÜ: Fotoğraflı yorum, toplam sayıyı aşamaz
+        const maxReasonable = Math.max(commentCount, ratingsCount);
+        if (maxReasonable > 0 && photoReviewsCount > maxReasonable) {
+            photoReviewsCount = Math.min(photoReviewsCount, maxReasonable);
+        }
+
         const result = {
             extracted_data: {
                 score: score || 0,
