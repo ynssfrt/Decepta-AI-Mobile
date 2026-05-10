@@ -275,20 +275,33 @@ const String scraperJsCode = r'''
                 for (let i = 0; i < scripts.length; i++) {
                     const txt = scripts[i].textContent || '';
                     if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
-                        const customerMatch = txt.match(/["']?customerReviewCount["']?\s*:\s*(\d+)/);
-                        const totalMatch = txt.match(/["']?totalReviewCount["']?\s*:\s*(\d+)/);
-                        
-                        if (customerMatch) {
-                            commentCount = parseInt(customerMatch[1]);
-                            hbSuccess = true;
-                        } else if (totalMatch) {
-                            commentCount = parseInt(totalMatch[1]);
-                            hbSuccess = true;
-                        }
-                        
-                        const mediaMatch = txt.match(/["']?(?:approvedMediaReviewCount|withMediaCount|photoReviewCount)["']?\s*:\s*(\d+)/);
-                        if (mediaMatch && typeof window.__hb_photoCount === 'undefined') {
-                            window.__hb_photoCount = parseInt(mediaMatch[1]);
+                        try {
+                            const firstBrace = txt.indexOf('{');
+                            const lastBrace = txt.lastIndexOf('}');
+                            if (firstBrace > -1 && lastBrace > firstBrace) {
+                                const jsonStr = txt.substring(firstBrace, lastBrace + 1);
+                                const state = JSON.parse(jsonStr);
+                                
+                                if (state.productReviews) {
+                                    commentCount = parseInt(state.productReviews.totalReviewCount || 0);
+                                    window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount || 0);
+                                    hbSuccess = true;
+                                } else if (state.reviews && state.reviews.summary) {
+                                    commentCount = parseInt(state.reviews.summary.totalReviewCount || 0);
+                                    window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount || 0);
+                                    hbSuccess = true;
+                                }
+                            }
+                        } catch (e) {
+                            const totalMatch = txt.match(/"productReviews"\s*:\s*\{[^}]*"totalReviewCount"\s*:\s*(\d+)/);
+                            if (totalMatch) {
+                                commentCount = parseInt(totalMatch[1]);
+                                hbSuccess = true;
+                            }
+                            const mediaMatch = txt.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
+                            if (mediaMatch && typeof window.__hb_photoCount === 'undefined') {
+                                window.__hb_photoCount = parseInt(mediaMatch[1]);
+                            }
                         }
                         
                         if (hbSuccess) break;
