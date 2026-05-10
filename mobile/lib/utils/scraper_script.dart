@@ -282,7 +282,7 @@ const String scraperJsCode = r'''
                         
                         const prIndex = relevantTxt.indexOf('"productReviews"');
                         if (prIndex > -1) {
-                            const prBlock = relevantTxt.substring(prIndex, prIndex + 500);
+                            const prBlock = relevantTxt.substring(prIndex);
                             
                             const totalMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
                             if (totalMatch) {
