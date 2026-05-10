@@ -3,7 +3,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'dart:ui';
-
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import '../utils/scraper_script.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -21,6 +23,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   double _progress = 0.0;
   String? _errorMessage;
   Map<String, dynamic>? _result;
+  late final WebViewController _webViewController;
+  StreamSubscription? _intentDataStreamSubscription;
   
   // History State
   bool _isLoadingHistory = false;
@@ -41,13 +45,91 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _fetchHistory();
       }
     });
+
+    // Share Intent Listeners
+    _intentDataStreamSubscription = ReceiveSharingIntent.getTextStream().listen((String value) {
+      _handleSharedText(value);
+    }, onError: (err) {
+      debugPrint("Paylaşım dinleme hatası: $err");
+    });
+
+    ReceiveSharingIntent.getInitialText().then((String? value) {
+      if (value != null && value.isNotEmpty) {
+        _handleSharedText(value);
+      }
+    });
+
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (String url) async {
+            if (_isAnalyzing && _currentStep == "Sayfa yükleniyor...") {
+              setState(() {
+                _currentStep = "Veriler ayıklanıyor...";
+                _progress = 0.3;
+              });
+              
+              await Future.delayed(const Duration(seconds: 4));
+              
+              if (!mounted || !_isAnalyzing) return;
+              
+              try {
+                final Object resultObj = await _webViewController.runJavaScriptReturningResult(scraperJsCode);
+                String resultString = resultObj.toString();
+                
+                if (resultString.startsWith('"') && resultString.endsWith('"')) {
+                  resultString = jsonDecode(resultString);
+                }
+                
+                final Map<String, dynamic> extractedData = jsonDecode(resultString);
+                _sendToBackend(url, extractedData);
+              } catch (e) {
+                 _handleError("JavaScript Hatası: $e");
+              }
+            }
+          },
+          onWebResourceError: (WebResourceError error) {
+            if (_isAnalyzing && _currentStep == "Sayfa yükleniyor...") {
+              _handleError("Sayfa yüklenemedi: ${error.description}");
+            }
+          },
+        ),
+      );
   }
 
   @override
   void dispose() {
+    _intentDataStreamSubscription?.cancel();
     _tabController.dispose();
     _urlController.dispose();
     super.dispose();
+  }
+
+  // --- SHARE INTENT METHOD ---
+  void _handleSharedText(String text) {
+    RegExp urlRegex = RegExp(r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)");
+    var match = urlRegex.firstMatch(text);
+    
+    if (match != null) {
+      final extractedUrl = match.group(0)!;
+      if (mounted) {
+        setState(() {
+          _urlController.text = extractedUrl;
+        });
+        _tabController.animateTo(0);
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _startAnalysis();
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _urlController.text = text;
+        });
+        _tabController.animateTo(0);
+      }
+    }
   }
 
   // --- LIVE SCAN METHODS ---
@@ -58,34 +140,55 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _isAnalyzing = true;
       _errorMessage = null;
       _result = null;
-      _progress = 0;
-      _currentStep = "Tarayıcı motoru başlatılıyor...";
+      _progress = 0.1;
+      _currentStep = "Sayfa yükleniyor...";
+    });
+
+    try {
+      _webViewController.loadRequest(Uri.parse(_urlController.text.trim()));
+    } catch (e) {
+      _handleError("URL yüklenemedi: $e");
+    }
+  }
+
+  void _handleError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _isAnalyzing = false;
+      _errorMessage = message;
+    });
+  }
+
+  Future<void> _sendToBackend(String url, Map<String, dynamic> extractedDataResult) async {
+    setState(() {
+      _currentStep = "Yapay Zeka analizine gönderiliyor...";
+      _progress = 0.6;
     });
 
     try {
       final response = await http.post(
-        Uri.parse('$baseApiUrl/scan/'), // FastAPI 307 redirect hatasını önlemek için '/' eklendi
+        Uri.parse('$baseApiUrl/scan/'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({"url": _urlController.text.trim()}),
+        body: jsonEncode({
+          "url": url,
+          "extracted_data": extractedDataResult['extracted_data'] ?? {},
+          "html_content": extractedDataResult['html'] ?? '',
+          "text_content": extractedDataResult['text'] ?? ''
+        }),
       );
 
       if (response.statusCode != 200) {
-        throw Exception("Sunucuya bağlanılamadı.");
+        throw Exception("Sunucuya bağlanılamadı. Kod: ${response.statusCode}");
       }
 
       final data = jsonDecode(response.body);
       final taskId = data['task_id'];
-      
       _pollStatus(taskId);
 
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isAnalyzing = false;
-        _errorMessage = e.toString().contains('Failed host lookup') 
-          ? "Sunucu (FastAPI) bulunamadı. Lütfen Endpoint IP'sini kontrol edin (Emülatör için 10.0.2.2)." 
-          : "Hata: ${e.toString()}";
-      });
+      _handleError(e.toString().contains('Failed host lookup') 
+          ? "Sunucu (FastAPI) bulunamadı. Lütfen Endpoint IP'sini kontrol edin." 
+          : "Backend Hatası: ${e.toString()}");
     }
   }
 
@@ -274,6 +377,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 "%${(_progress * 100).toInt()} Tamamlandı",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white.withOpacity(0.7)),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 1,
+                width: MediaQuery.of(context).size.width,
+                child: Opacity(
+                  opacity: 0.01,
+                  child: WebViewWidget(controller: _webViewController),
+                ),
               ),
             ] 
             else if (_result != null) ...[
