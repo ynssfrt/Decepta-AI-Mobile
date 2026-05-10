@@ -83,28 +83,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 _progress = 0.3;
               });
               
-              // Hepsiburada: Yorumlar sekmesine tıkla
-              if (url.contains('hepsiburada.com')) {
-                setState(() { _currentStep = "Yorumlar sekmesine geçiliyor..."; });
-                await _webViewController.runJavaScript('''
+              // Hepsiburada: Ürün sayfasındaysak -yorumlari sayfasına yönlendir
+              if (url.contains('hepsiburada.com') && !url.contains('-yorumlari')) {
+                setState(() {
+                  _currentStep = "Yorumlar sayfasına geçiliyor...";
+                  _progress = 0.15;
+                });
+                // URL'den -yorumlari sayfasını oluştur
+                final reviewsUrl = await _webViewController.runJavaScriptReturningResult('''
                   (function() {
-                    var clicked = false;
-                    var allTabs = document.querySelectorAll('[role="tab"], [class*="Tab"], [class*="tab"], button, a');
-                    for (var i = 0; i < allTabs.length; i++) {
-                      var text = (allTabs[i].innerText || '').trim().toLowerCase();
-                      if (text.indexOf('değerlendirme') !== -1 || text.indexOf('yorum') !== -1) {
-                        allTabs[i].click();
-                        clicked = true;
-                        break;
-                      }
-                    }
-                    if (!clicked) { window.scrollTo(0, document.body.scrollHeight * 0.6); }
+                    var link = document.querySelector('a[href*="-yorumlari"]');
+                    if (link) return link.href;
+                    var url = window.location.href.split('?')[0].split('#')[0];
+                    if (url.match(/-p-[A-Za-z0-9]+\$/)) return url + '-yorumlari';
+                    return '';
                   })();
                 ''');
-                // Yorumların AJAX ile yüklenmesini bekle
-                await Future.delayed(const Duration(seconds: 5));
+                var urlStr = reviewsUrl.toString().replaceAll('"', '');
+                if (urlStr.isNotEmpty && urlStr != 'null') {
+                  _webViewController.loadRequest(Uri.parse(urlStr));
+                  return; // onPageFinished tekrar tetiklenecek
+                }
+                // Bulunamazsa scroll ile devam
+                await _webViewController.runJavaScript('window.scrollTo(0, document.body.scrollHeight * 0.6);');
+                await Future.delayed(const Duration(seconds: 3));
               } else {
-                // Trendyol yorumlar sayfası veya diğer siteler
+                // Trendyol yorumlar sayfası, HB yorumlar sayfası veya diğer siteler
                 await Future.delayed(const Duration(seconds: 4));
               }
               
