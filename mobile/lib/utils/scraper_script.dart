@@ -225,46 +225,40 @@ const String scraperJsCode = r'''
         if (isHepsiburada) {
             commentCount = 0;
             let hbSuccess = false;
+            let hbPhotoFound = false;
             
-            // YÖNTEM 1: WebView içinden doğrudan window objesini oku (Mobile Webview izole değildir)
-            try {
-                if (window.__HB_REVIEWS_INITIAL_STATE__) {
-                    var state = window.__HB_REVIEWS_INITIAL_STATE__;
-                    if (state.productReviews) {
-                        commentCount = parseInt(state.productReviews.totalReviewCount || 0);
-                        window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount || 0);
-                        hbSuccess = true;
-                    } else if (state.reviews && state.reviews.summary) {
-                        commentCount = parseInt(state.reviews.summary.totalReviewCount || 0);
-                        window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount || 0);
-                        hbSuccess = true;
+            // YÖNTEM 0: bodyText'te spesifik tab etiketlerini ara (EN GÜVENİLİR)
+            const yorumluMatch = bodyText.match(/Yorumlu\s*\((\d[\d.]*)\)/);
+            if (yorumluMatch) {
+                commentCount = parseInt(yorumluMatch[1].replace(/\./g, ''));
+                hbSuccess = true;
+            }
+            
+            const fotoluMatch = bodyText.match(/Foto(?:ğ|g)rafl[ıi]\s*\((\d[\d.]*)\)/);
+            if (fotoluMatch) {
+                window.__hb_photoCount = parseInt(fotoluMatch[1].replace(/\./g, ''));
+                hbPhotoFound = true;
+            }
+            
+            // YÖNTEM 1: Window objesi
+            if (!hbSuccess) {
+                try {
+                    if (window.__HB_REVIEWS_INITIAL_STATE__) {
+                        var state = window.__HB_REVIEWS_INITIAL_STATE__;
+                        if (state.productReviews && state.productReviews.commentCount) {
+                            commentCount = parseInt(state.productReviews.commentCount);
+                            hbSuccess = true;
+                        }
+                        if (!hbPhotoFound && state.productReviews && state.productReviews.approvedMediaReviewCount) {
+                            window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount);
+                            hbPhotoFound = true;
+                        }
                     }
-                }
-            } catch(e) {}
+                } catch(e) {}
+            }
             
-            // YÖNTEM 2: Hepsiburada performanstan dolayı window objesini silmişse, ham metin üzerinden regex ile oku
-            let cutoff = bodyText.search(/Benzer Ürünler|Önerilenler|Bunları da beğenebilirsiniz|Müşteriler bunları da aldı/i);
-            if (cutoff === -1) cutoff = bodyText.length;
-            
-            const filterElements = document.querySelectorAll('button, a, span, div[class*="Filter"], div[class*="filter"], div[class*="Tab"], div[class*="tab"]');
-            let foundYorum = false;
-            let foundFoto = false;
-            
-            filterElements.forEach(el => {
-                const text = (el.innerText || '').trim();
-                if (text.length > 3 && text.length < 50 && bodyText.indexOf(text) < cutoff) {
-                    if (!foundYorum) {
-                        const m = text.match(/[Yy]orum(?:lu|lar)?\s*\(?(\d[\d.]*)\)?/) || text.match(/(\d[\d.]*)\s*[Yy]orum/i);
-                        if (m) { commentCount = parseInt(m[1].replace(/\./g, '')); foundYorum = true; hbSuccess = true; }
-                    }
-                    if (!foundFoto) {
-                        const m = text.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*(?:[Yy]orum(?:lar)?\s*)?\(?(\d[\d.]*)\)?/) || text.match(/(\d[\d.]*)\s*(?:adet\s*)?[Ff]oto(?:ğ|g)rafl[ıi]/i);
-                        if (m) { window.__hb_photoCount = parseInt(m[1].replace(/\./g, '')); foundFoto = true; }
-                    }
-                }
-            });
-
-            if (!hbSuccess || !foundFoto) {
+            // YÖNTEM 2: Script bloğundan spesifik anahtarları çek
+            if (!hbSuccess || !hbPhotoFound) {
                 const scripts = document.querySelectorAll('script');
                 for (let i = 0; i < scripts.length; i++) {
                     const txt = scripts[i].textContent || '';
@@ -273,30 +267,18 @@ const String scraperJsCode = r'''
                         const stateTxt = txt.substring(stateIndex);
                         
                         if (!hbSuccess) {
-                            const prIndex = stateTxt.indexOf('"productReviews"');
-                            if (prIndex > -1) {
-                                const prBlock = stateTxt.substring(prIndex, prIndex + 2000);
-                                const totalMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                                if (totalMatch) {
-                                    commentCount = parseInt(totalMatch[1]);
-                                    hbSuccess = true;
-                                }
-                            }
-                            
-                            if (!hbSuccess) {
-                                const anyReview = stateTxt.match(/"(?:totalReviewCount|reviewCount|customerReviewCount|totalItemCount)"\s*:\s*(\d+)/);
-                                if (anyReview) {
-                                    commentCount = parseInt(anyReview[1]);
-                                    hbSuccess = true;
-                                }
+                            const commentMatch = stateTxt.match(/"(?:commentCount|approvedCommentCount|approvedReviewCount|textReviewCount|writtenReviewCount)"\s*:\s*(\d+)/);
+                            if (commentMatch) {
+                                commentCount = parseInt(commentMatch[1]);
+                                hbSuccess = true;
                             }
                         }
                         
-                        if (!foundFoto) {
+                        if (!hbPhotoFound) {
                             const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount|mediaCount|withMediaCount|photoReviewCount|mediaReviewCount)"\s*:\s*(\d+)/);
                             if (mediaMatch) {
                                 window.__hb_photoCount = parseInt(mediaMatch[1]);
-                                foundFoto = true;
+                                hbPhotoFound = true;
                             }
                         }
                         
@@ -305,6 +287,7 @@ const String scraperJsCode = r'''
                 }
             }
             
+            // YÖNTEM 3: "(52 Değerlendirme)" metninden son çare
             if (!hbSuccess) {
                 const evalMatch = bodyText.match(/\((\d[\d.]*)\s*[Dd]eğerlendirme\)/);
                 if (evalMatch) {
