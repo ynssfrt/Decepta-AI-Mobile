@@ -222,7 +222,10 @@ const String scraperJsCode = r'''
             }
         }
 
-        if (commentCount === 0 && isHepsiburada) {
+        if (isHepsiburada) {
+            commentCount = 0;
+            let hbSuccess = false;
+            
             // YÖNTEM 1: WebView içinden doğrudan window objesini oku (Mobile Webview izole değildir)
             try {
                 if (window.__HB_REVIEWS_INITIAL_STATE__) {
@@ -230,40 +233,47 @@ const String scraperJsCode = r'''
                     if (state.productReviews) {
                         commentCount = parseInt(state.productReviews.totalReviewCount || 0);
                         window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount || 0);
+                        hbSuccess = true;
                     } else if (state.reviews && state.reviews.summary) {
                         commentCount = parseInt(state.reviews.summary.totalReviewCount || 0);
                         window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount || 0);
+                        hbSuccess = true;
                     }
                 }
             } catch(e) {}
             
             // YÖNTEM 2: Hepsiburada performanstan dolayı window objesini silmişse, ham metin üzerinden regex ile oku
-            if (commentCount === 0) {
+            if (!hbSuccess) {
                 const scripts = document.querySelectorAll('script');
                 for (let i = 0; i < scripts.length; i++) {
                     const txt = scripts[i].textContent || '';
                     if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
                         const totalMatch = txt.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                        if (totalMatch) commentCount = parseInt(totalMatch[1]);
+                        if (totalMatch) {
+                            commentCount = parseInt(totalMatch[1]);
+                            hbSuccess = true;
+                        }
                         const mediaMatch = txt.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
                         if (mediaMatch) window.__hb_photoCount = parseInt(mediaMatch[1]);
-                        if (commentCount > 0) break;
+                        if (hbSuccess) break;
                     }
                 }
             }
 
-            if (commentCount === 0) {
+            if (!hbSuccess) {
                 const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
                 if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
+                
+                if (commentCount === 0) {
+                    const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
+                    let withText = 0;
+                    reviewCards.forEach(card => { if ((card.innerText || '').trim().length > 60) withText++; });
+                    if (withText > 0) commentCount = withText;
+                }
+                
+                if (commentCount === 0) { commentCount = comments.filter(c => c !== '[Sadece Görsel]' && c.length > 5).length; }
+                if (commentCount === 0 && ratingsCount > 0) { commentCount = comments.length > 0 ? comments.length : ratingsCount; }
             }
-            if (commentCount === 0) {
-                const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
-                let withText = 0;
-                reviewCards.forEach(card => { if ((card.innerText || '').trim().length > 60) withText++; });
-                if (withText > 0) commentCount = withText;
-            }
-            if (commentCount === 0) { commentCount = comments.filter(c => c !== '[Sadece Görsel]' && c.length > 5).length; }
-            if (commentCount === 0 && ratingsCount > 0) { commentCount = comments.length > 0 ? comments.length : ratingsCount; }
         }
         if (commentCount === 0) commentCount = comments.length;
 
