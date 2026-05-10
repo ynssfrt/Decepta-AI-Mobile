@@ -223,15 +223,13 @@ const String scraperJsCode = r'''
         }
 
         if (commentCount === 0 && isHepsiburada) {
-            const filterTags = document.querySelectorAll('[class*="FilterTag"], [class*="filterTag"], [class*="filter-tag"]');
-            for (const tag of filterTags) {
-                const text = (tag.innerText || '').trim();
-                const yorumluMatch = text.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
-                if (yorumluMatch) { commentCount = parseInt(yorumluMatch[1].replace(/\./g, '')); break; }
-            }
+            const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
+            if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
             if (commentCount === 0) {
-                const yorumMatch = bodyText.match(/(\d[\d.]*)\s*[Yy]orum(?!\s*yazın)/);
-                if (yorumMatch) { const val = parseInt(yorumMatch[1].replace(/\./g, '')); if (val > 0 && val <= ratingsCount) commentCount = val; }
+                const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
+                let withText = 0;
+                reviewCards.forEach(card => { if ((card.innerText || '').trim().length > 60) withText++; });
+                if (withText > 0) commentCount = withText;
             }
             if (commentCount === 0) { commentCount = comments.filter(c => c !== '[Sadece Görsel]' && c.length > 5).length; }
             if (commentCount === 0 && ratingsCount > 0) { commentCount = comments.length > 0 ? comments.length : ratingsCount; }
@@ -240,18 +238,13 @@ const String scraperJsCode = r'''
 
         let photoReviewsCount = 0;
         if (isHepsiburada) {
-            const filterTags = document.querySelectorAll('[class*="FilterTag"], [class*="filterTag"], [class*="filter-tag"]');
-            for (const tag of filterTags) {
-                const text = (tag.innerText || '').trim();
-                const fotoMatch = text.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/);
-                if (fotoMatch) { photoReviewsCount = parseInt(fotoMatch[1].replace(/\./g, '')); break; }
-            }
+            const fotoBody = bodyText.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/);
+            if (fotoBody) { photoReviewsCount = parseInt(fotoBody[1].replace(/\./g, '')); }
         }
-        if (photoReviewsCount === 0) {
+        if (photoReviewsCount === 0 && !isHepsiburada) {
             const photoPatterns = [
                 /[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/,
                 /(\d[\d.]*)\s*(?:adet\s*)?fotoğraflı/i,
-                /görsel(?:li)?\s*(?:yorum(?:lar)?)?\s*\(?(\d[\d.]*)\)?/i
             ];
             for (const pat of photoPatterns) {
                 const m = bodyText.match(pat);
