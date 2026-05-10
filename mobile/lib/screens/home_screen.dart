@@ -134,7 +134,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   // --- LIVE SCAN METHODS ---
   Future<void> _startAnalysis() async {
-    if (_urlController.text.trim().isEmpty) return;
+    final url = _urlController.text.trim();
+    if (url.isEmpty) return;
+
+    // URL validasyonu
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      _handleError("Lütfen geçerli bir URL girin (https:// ile başlamalı).");
+      return;
+    }
 
     setState(() {
       _isAnalyzing = true;
@@ -145,7 +152,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
 
     try {
-      _webViewController.loadRequest(Uri.parse(_urlController.text.trim()));
+      _webViewController.loadRequest(Uri.parse(url));
+
+      // 30 saniye timeout — sayfa bu sürede yüklenmezse iptal et
+      Future.delayed(const Duration(seconds: 30), () {
+        if (mounted && _isAnalyzing && _currentStep == "Sayfa yükleniyor...") {
+          _handleError("Zaman aşımı: Sayfa 30 saniye içinde yüklenemedi. Lütfen linki kontrol edin.");
+        }
+      });
     } catch (e) {
       _handleError("URL yüklenemedi: $e");
     }
@@ -511,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 8.0, left: 46.0),
                 child: Text(
-                  "Platform: \${record['platform_score']} • Bot Oranı: %\${record['bot_percentage']}",
+                  "Platform: ${record['platform_score']} • Bot Oranı: %${record['bot_percentage']}",
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ),
@@ -528,9 +542,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _statRow("Toplam Değerlendiren:", "\${record['total_ratings']}", Colors.white70),
-                      _statRow("Yorum Sayısı:", "\${record['total_reviews']}", Colors.white70),
-                      _statRow("Fotoğraflı Yorum:", "\${record['photo_reviews_count'] ?? 0}", Colors.white70),
+                      _statRow("Toplam Değerlendiren:", "${record['total_ratings']}", Colors.white70),
+                      _statRow("Yorum Sayısı:", "${record['total_reviews']}", Colors.white70),
+                      _statRow("Fotoğraflı Yorum:", "${record['photo_reviews_count'] ?? 0}", Colors.white70),
                       const Divider(color: Colors.white24, height: 24),
                       if ((record['suspicious_reviews'] as List).isNotEmpty)
                         _buildSuspiciousList(record['suspicious_reviews'])
@@ -573,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           const SizedBox(height: 16),
           Text(
-            "Toplam \${data['total_reviews']} yorum içerisinde \${data['bot_percentage']}% oranında ağ ihlali bulundu.",
+            "Toplam ${data['total_reviews']} yorum içerisinde ${data['bot_percentage']}% oranında ağ ihlali bulundu.",
             textAlign: TextAlign.center,
             style: TextStyle(color: isDanger ? Colors.redAccent : Colors.greenAccent),
           ),
@@ -594,11 +608,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         children: [
           const Text("Sayfa İstatistikleri", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _statRow("Görünen Puan:", "\${data['platform_score']}", Colors.white),
-          _statRow("Toplam Değerlendiren:", "\${data['total_ratings']}", Colors.white),
-          _statRow("Toplam Yorum Sayısı:", "\${data['total_reviews']}", Colors.white),
-          _statRow("Fotoğraflı Yorum Sayısı:", "\${data['photo_reviews_count'] ?? 0}", Colors.white),
-          _statRow("Şüpheli Yorum:", "\${(data['suspicious_reviews'] as List).length}", Colors.redAccent),
+          _statRow("Görünen Puan:", "${data['platform_score']}", Colors.white),
+          _statRow("Toplam Değerlendiren:", "${data['total_ratings']}", Colors.white),
+          _statRow("Toplam Yorum Sayısı:", "${data['total_reviews']}", Colors.white),
+          _statRow("Fotoğraflı Yorum Sayısı:", "${data['photo_reviews_count'] ?? 0}", Colors.white),
+          _statRow("Şüpheli Yorum:", "${(data['suspicious_reviews'] as List).length}", Colors.redAccent),
         ],
       ),
     );
@@ -610,7 +624,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70)),
+          Expanded(
+            child: Text(label, style: const TextStyle(color: Colors.white70)),
+          ),
+          const SizedBox(width: 8),
           Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
