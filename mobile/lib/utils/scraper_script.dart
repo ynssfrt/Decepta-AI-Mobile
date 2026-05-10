@@ -257,7 +257,7 @@ const String scraperJsCode = r'''
                 } catch(e) {}
             }
             
-            // YÖNTEM 2: Script bloğu (HER ZAMAN fotoğraf için çalışır)
+            // YÖNTEM 2: Script bloğu
             const scripts = document.querySelectorAll('script');
             for (let i = 0; i < scripts.length; i++) {
                 const txt = scripts[i].textContent || '';
@@ -266,7 +266,7 @@ const String scraperJsCode = r'''
                     const stateTxt = txt.substring(stateIndex);
                     
                     if (!hbPhotoFound) {
-                        const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount|mediaCount|withMediaCount|photoReviewCount)"\s*:\s*(\d+)/);
+                        const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount)"\s*:\s*(\d+)/);
                         if (mediaMatch) {
                             window.__hb_photoCount = parseInt(mediaMatch[1]);
                             hbPhotoFound = true;
@@ -274,14 +274,42 @@ const String scraperJsCode = r'''
                     }
                     
                     if (!hbSuccess) {
-                        const commentMatch = stateTxt.match(/"(?:commentCount|approvedCommentCount|textReviewCount|writtenReviewCount)"\s*:\s*(\d+)/);
-                        if (commentMatch) {
-                            commentCount = parseInt(commentMatch[1]);
+                        let ratingSummaryCount = 0;
+                        const rsIndex = stateTxt.indexOf('"ratingSummary"');
+                        if (rsIndex > -1) {
+                            const rsBlock = stateTxt.substring(rsIndex, rsIndex + 500);
+                            const rsMatch = rsBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                            if (rsMatch) ratingSummaryCount = parseInt(rsMatch[1]);
+                        }
+                        
+                        let productReviewsCount = 0;
+                        const prIndex = stateTxt.indexOf('"productReviews"');
+                        if (prIndex > -1) {
+                            const prBlock = stateTxt.substring(prIndex, prIndex + 500);
+                            const prMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                            if (prMatch) productReviewsCount = parseInt(prMatch[1]);
+                        }
+                        
+                        if (ratingSummaryCount > 0 && productReviewsCount > 0 && productReviewsCount !== ratingSummaryCount) {
+                            commentCount = Math.min(ratingSummaryCount, productReviewsCount);
                             hbSuccess = true;
-                        } else {
-                            const totalMatch = stateTxt.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                            if (totalMatch) {
-                                commentCount = parseInt(totalMatch[1]);
+                        } else if (productReviewsCount > 0) {
+                            commentCount = productReviewsCount;
+                            hbSuccess = true;
+                        } else if (ratingSummaryCount > 0) {
+                            const pageCountMatch = stateTxt.match(/"pageCount"\s*:\s*(\d+)/);
+                            const pageSizeMatch = stateTxt.match(/"pageSize"\s*:\s*(\d+)/);
+                            if (pageCountMatch) {
+                                const pageCount = parseInt(pageCountMatch[1]);
+                                const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 5;
+                                const estimatedReviews = pageCount * pageSize;
+                                if (estimatedReviews < ratingSummaryCount) {
+                                    commentCount = estimatedReviews;
+                                    hbSuccess = true;
+                                }
+                            }
+                            if (!hbSuccess) {
+                                commentCount = ratingSummaryCount;
                                 hbSuccess = true;
                             }
                         }
