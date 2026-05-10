@@ -252,59 +252,66 @@ const String scraperJsCode = r'''
             
             filterElements.forEach(el => {
                 const text = (el.innerText || '').trim();
-                if (text.length > 5 && text.length < 40 && bodyText.indexOf(text) < cutoff) {
+                if (text.length > 3 && text.length < 50 && bodyText.indexOf(text) < cutoff) {
                     if (!foundYorum) {
-                        const m = text.match(/[Yy]orum(?:lu|lar)?\s*\(?(\d[\d.]*)\)?/);
+                        const m = text.match(/[Yy]orum(?:lu|lar)?\s*\(?(\d[\d.]*)\)?/) || text.match(/(\d[\d.]*)\s*[Yy]orum/i);
                         if (m) { commentCount = parseInt(m[1].replace(/\./g, '')); foundYorum = true; hbSuccess = true; }
-                        else {
-                            const m2 = text.match(/(\d[\d.]*)\s*[Yy]orum/i);
-                            if (m2) { commentCount = parseInt(m2[1].replace(/\./g, '')); foundYorum = true; hbSuccess = true; }
-                        }
                     }
                     if (!foundFoto) {
-                        const m = text.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*(?:Yorum(?:lar)?\s*)?\(?(\d[\d.]*)\)?/);
+                        const m = text.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*(?:[Yy]orum(?:lar)?\s*)?\(?(\d[\d.]*)\)?/) || text.match(/(\d[\d.]*)\s*(?:adet\s*)?[Ff]oto(?:ğ|g)rafl[ıi]/i);
                         if (m) { window.__hb_photoCount = parseInt(m[1].replace(/\./g, '')); foundFoto = true; }
-                        else {
-                            const m2 = text.match(/(\d[\d.]*)\s*(?:adet\s*)?fotoğraflı/i);
-                            if (m2) { window.__hb_photoCount = parseInt(m2[1].replace(/\./g, '')); foundFoto = true; }
-                        }
                     }
                 }
             });
 
-            if (!hbSuccess) {
+            if (!hbSuccess || !foundFoto) {
                 const scripts = document.querySelectorAll('script');
                 for (let i = 0; i < scripts.length; i++) {
                     const txt = scripts[i].textContent || '';
                     if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
                         const stateIndex = txt.indexOf('__HB_REVIEWS_INITIAL_STATE__');
-                        const relevantTxt = txt.substring(stateIndex);
+                        const stateTxt = txt.substring(stateIndex);
                         
-                        const prIndex = relevantTxt.indexOf('"productReviews"');
-                        if (prIndex > -1) {
-                            const prBlock = relevantTxt.substring(prIndex);
-                            
-                            const totalMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                            if (totalMatch) {
-                                commentCount = parseInt(totalMatch[1]);
-                                hbSuccess = true;
+                        if (!hbSuccess) {
+                            const prIndex = stateTxt.indexOf('"productReviews"');
+                            if (prIndex > -1) {
+                                const prBlock = stateTxt.substring(prIndex, prIndex + 2000);
+                                const totalMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
+                                if (totalMatch) {
+                                    commentCount = parseInt(totalMatch[1]);
+                                    hbSuccess = true;
+                                }
                             }
                             
-                            if (!foundFoto) {
-                                const mediaMatch = prBlock.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/);
-                                if (mediaMatch) {
-                                    window.__hb_photoCount = parseInt(mediaMatch[1]);
+                            if (!hbSuccess) {
+                                const anyReview = stateTxt.match(/"(?:totalReviewCount|reviewCount|customerReviewCount|totalItemCount)"\s*:\s*(\d+)/);
+                                if (anyReview) {
+                                    commentCount = parseInt(anyReview[1]);
+                                    hbSuccess = true;
                                 }
                             }
                         }
                         
-                        if (hbSuccess) break;
+                        if (!foundFoto) {
+                            const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount|mediaCount|withMediaCount|photoReviewCount|mediaReviewCount)"\s*:\s*(\d+)/);
+                            if (mediaMatch) {
+                                window.__hb_photoCount = parseInt(mediaMatch[1]);
+                                foundFoto = true;
+                            }
+                        }
+                        
+                        break;
                     }
                 }
             }
             
-            // HEPSİBURADA İÇİN FALLBACK YOK!
-            // DOM'daki yorum kartlarını veya görselleri saymak tutarsız sonuç verir.
+            if (!hbSuccess) {
+                const evalMatch = bodyText.match(/\((\d[\d.]*)\s*[Dd]eğerlendirme\)/);
+                if (evalMatch) {
+                    commentCount = parseInt(evalMatch[1].replace(/\./g, ''));
+                    hbSuccess = true;
+                }
+            }
         }
         if (commentCount === 0 && !isHepsiburada) commentCount = comments.length;
 
