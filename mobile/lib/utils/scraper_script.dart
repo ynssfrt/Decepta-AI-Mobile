@@ -223,8 +223,25 @@ const String scraperJsCode = r'''
         }
 
         if (commentCount === 0 && isHepsiburada) {
-            const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
-            if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
+            const scripts = document.querySelectorAll('script');
+            for (let i = 0; i < scripts.length; i++) {
+                const txt = scripts[i].textContent || '';
+                if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
+                    try {
+                        const m = txt.match(/window\.__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{.+?\});/);
+                        if (m) {
+                            const state = JSON.parse(m[1]);
+                            if (state?.reviews?.summary?.totalReviewCount) commentCount = parseInt(state.reviews.summary.totalReviewCount);
+                            if (state?.reviews?.summary?.approvedMediaReviewCount) window.__hb_photoCount = parseInt(state.reviews.summary.approvedMediaReviewCount);
+                        }
+                    } catch(e) {}
+                    break;
+                }
+            }
+            if (commentCount === 0) {
+                const yorumluBody = bodyText.match(/[Yy]orumlu\s*\(?(\d[\d.]*)\)?/);
+                if (yorumluBody) { commentCount = parseInt(yorumluBody[1].replace(/\./g, '')); }
+            }
             if (commentCount === 0) {
                 const reviewCards = document.querySelectorAll('[class*="ReviewCard-module"], [class*="hermes-ReviewCard"]');
                 let withText = 0;
@@ -237,7 +254,10 @@ const String scraperJsCode = r'''
         if (commentCount === 0) commentCount = comments.length;
 
         let photoReviewsCount = 0;
-        if (isHepsiburada) {
+        if (isHepsiburada && typeof window.__hb_photoCount !== 'undefined') {
+            photoReviewsCount = window.__hb_photoCount;
+        }
+        if (photoReviewsCount === 0 && isHepsiburada) {
             const fotoBody = bodyText.match(/[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/);
             if (fotoBody) { photoReviewsCount = parseInt(fotoBody[1].replace(/\./g, '')); }
         }
