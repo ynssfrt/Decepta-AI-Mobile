@@ -222,65 +222,17 @@ const String scraperJsCode = r'''
             }
         }
 
+        // ========== HEPSİBURADA: ÖZEL AYIKLAMA (v8) ==========
         if (isHepsiburada) {
             commentCount = 0;
+            let hbPhotoCount = 0;
             let hbSuccess = false;
-            let hbPhotoFound = false;
-            
-            // YÖNTEM 0: bodyText'te spesifik tab etiketlerini ara
-            const yorumluMatch = bodyText.match(/Yorumlu\s*\((\d[\d.]*)\)/);
-            if (yorumluMatch) {
-                commentCount = parseInt(yorumluMatch[1].replace(/\./g, ''));
-                hbSuccess = true;
-            }
-            
-            const fotoluMatch = bodyText.match(/Foto(?:ğ|g)rafl[ıi]\s*\((\d[\d.]*)\)/);
-            if (fotoluMatch) {
-                window.__hb_photoCount = parseInt(fotoluMatch[1].replace(/\./g, ''));
-                hbPhotoFound = true;
-            }
-            
-            // YÖNTEM 1: Window objesi
-            if (!hbSuccess) {
-                try {
-                    if (window.__HB_REVIEWS_INITIAL_STATE__) {
-                        var state = window.__HB_REVIEWS_INITIAL_STATE__;
-                        if (state.productReviews && state.productReviews.commentCount) {
-                            commentCount = parseInt(state.productReviews.commentCount);
-                            hbSuccess = true;
-                        }
-                        if (!hbPhotoFound && state.productReviews && state.productReviews.approvedMediaReviewCount) {
-                            window.__hb_photoCount = parseInt(state.productReviews.approvedMediaReviewCount);
-                            hbPhotoFound = true;
-                        }
-                    }
-                } catch(e) {}
-            }
-            
-            // YÖNTEM 2: Script bloğu
+
+            // 1. ADIM: Script Verisi
             const scripts = document.querySelectorAll('script');
             for (let i = 0; i < scripts.length; i++) {
                 const txt = scripts[i].textContent || '';
                 if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
-                    const stateIndex = txt.indexOf('__HB_REVIEWS_INITIAL_STATE__');
-                    const stateTxt = txt.substring(stateIndex);
-                    
-                    if (!hbPhotoFound) {
-                        const mediaMatch = stateTxt.match(/"(?:approvedMediaReviewCount|totalPhotoCount)"\s*:\s*(\d+)/);
-                        if (mediaMatch) {
-                            window.__hb_photoCount = parseInt(mediaMatch[1]);
-                            hbPhotoFound = true;
-                        }
-                    }
-                    
-                    if (!hbSuccess) {
-                        let ratingSummaryCount = 0;
-                        const rsIndex = stateTxt.indexOf('"ratingSummary"');
-                        if (rsIndex > -1) {
-                            const rsBlock = stateTxt.substring(rsIndex, rsIndex + 500);
-                            const rsMatch = rsBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                            if (rsMatch) ratingSummaryCount = parseInt(rsMatch[1]);
-                        }
                         
                         let productReviewsCount = 0;
                         const prIndex = stateTxt.indexOf('"productReviews"');
