@@ -2,6 +2,7 @@ const String scraperJsCode = r'''
 (() => {
     try {
         const url = window.location.href;
+        const html = document.body.innerHTML;
         const bodyText = document.body.innerText;
         const isHepsiburada = url.includes('hepsiburada.com');
         
@@ -13,35 +14,25 @@ const String scraperJsCode = r'''
             const el = document.querySelector(sel);
             if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
         }
-        const countEls = ['.rvw-cnt-tx', '[itemprop="ratingCount"]', '[class*="count"]'];
+        const countEls = ['.rvw-cnt-tx', '[itemprop="ratingCount"]', '[class*="ReviewSummary"] [class*="count"]'];
         for (const sel of countEls) {
-            const els = document.querySelectorAll(sel);
-            for (const el of els) {
-                const m = el.innerText.match(/(\d+)/);
-                if (m) { const v = parseInt(m[1]); if (v > ratingsCount) ratingsCount = v; }
-            }
+            const el = document.querySelector(sel);
+            if (el) { const m = el.innerText.match(/(\d+)/); if (m) { ratingsCount = parseInt(m[1]); break; } }
         }
         if (ratingsCount === 0) {
             const m = bodyText.match(/(\d+)\s*[Dd]eğerlendirme/);
             if (m) ratingsCount = parseInt(m[1]);
         }
 
-        // 2. HEPSİBURADA: v12
+        // 2. HEPSİBURADA: v13
         if (isHepsiburada) {
             let hbSuccess = false;
-            // Metin Taraması
-            const mYorum = bodyText.match(/Yorum(?:lar)?\s*\((\d+)\)/i);
+            const mYorum = html.match(/Yorum(?:lar)?\s*\((\d+)\)/i) || bodyText.match(/Yorum(?:lar)?\s*\((\d+)\)/i);
             if (mYorum) { commentCount = parseInt(mYorum[1]); hbSuccess = true; }
-            const mFoto = bodyText.match(/Foto(?:ğ|g)rafl[ıi](?:\s*Yorumlar)?\s*\((\d+)\)/i);
+            const mFoto = html.match(/Foto(?:ğ|g)rafl[ıi](?:\s*Yorumlar)?\s*\((\d+)\)/i) || bodyText.match(/Foto(?:ğ|g)rafl[ıi](?:\s*Yorumlar)?\s*\((\d+)\)/i);
             if (mFoto) hbPhotoCount = parseInt(mFoto[1]);
-            
-            // Pagination
-            if (!hbSuccess || commentCount === 0) {
-                const pag = bodyText.match(/(\d+)\s*-\s*(\d+)\s*\/\s*(\d+)/);
-                if (pag) { commentCount = parseInt(pag[3]); hbSuccess = true; }
-            }
 
-            if (!hbSuccess || hbPhotoCount === 0) {
+            if (commentCount === 0 || hbPhotoCount === 0) {
                 const scripts = document.querySelectorAll('script');
                 for (const s of scripts) {
                     const txt = s.textContent || '';
@@ -56,7 +47,7 @@ const String scraperJsCode = r'''
                             if (end > -1) {
                                 const state = JSON.parse(txt.substring(start, end + 1));
                                 if (!ratingsCount) ratingsCount = state.ratingSummary?.totalReviewCount || 0;
-                                if (!hbSuccess) { commentCount = state.productReviews?.totalReviewCount || 0; hbSuccess = true; }
+                                if (commentCount === 0) { commentCount = state.productReviews?.totalReviewCount || 0; hbSuccess = true; }
                                 if (hbPhotoCount === 0) hbPhotoCount = state.mediaSummary?.approvedMediaReviewCount || 0;
                             }
                         } catch (e) {}
@@ -66,7 +57,7 @@ const String scraperJsCode = r'''
             }
             if (commentCount === 0 && ratingsCount > 0) commentCount = ratingsCount;
             if (ratingsCount > 0 && commentCount > ratingsCount) commentCount = ratingsCount;
-            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V12' } });
+            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V13' } });
         }
 
         return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: 0 } });
