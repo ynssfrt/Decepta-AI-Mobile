@@ -9,22 +9,25 @@ const String scraperJsCode = r'''
         let ratingsCount = 0;
         let commentCount = 0;
 
-        // ========== HEPSİBURADA: ÖNCELİKLİ AYIKLAMA (v9) ==========
+        // 1. Metadata
+        const scoreEls = ['.pr-in-rnr-v', '[class*="RatingPointer"]', '[itemprop="ratingValue"]'];
+        for (const sel of scoreEls) {
+            const el = document.querySelector(sel);
+            if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
+        }
+        const countEls = ['.rvw-cnt-tx', '.total-review-count', '[itemprop="ratingCount"]'];
+        for (const sel of countEls) {
+            const el = document.querySelector(sel);
+            if (el) {
+                const m = el.innerText.match(/(\d[\d.]*)/);
+                if (m) { ratingsCount = parseInt(m[1].replace(/\./g, '')); break; }
+            }
+        }
+
+        // 2. HEPSİBURADA: FINAL (v10)
         if (isHepsiburada) {
-            let hbPhotoCount = 0;
-            let hbSuccess = false;
-
-            const countEl = document.querySelector('[class*="ReviewSummary"] [class*="count"]') || document.querySelector('[itemprop="ratingCount"]');
-            if (countEl) {
-                const m = countEl.innerText.match(/(\d[\d.]*)/);
-                if (m) ratingsCount = parseInt(m[1].replace(/\./g, ''));
-            }
-            const scoreEl = document.querySelector('[class*="RatingPointer"]') || document.querySelector('[itemprop="ratingValue"]');
-            if (scoreEl) {
-                score = parseFloat((scoreEl.getAttribute('content') || scoreEl.innerText || '').replace(',', '.'));
-            }
-
-            const tabs = document.querySelectorAll('button, a, span, b, .hermes-ReviewSummary-module-ratingCount');
+            let hbPhotoCount = 0, hbSuccess = false;
+            const tabs = document.querySelectorAll('button, a, span, b, [class*="hermes"]');
             tabs.forEach(el => {
                 const txt = el.innerText || '';
                 const mYorum = txt.match(/Yorum(?:lar)?\s*\((\d+)\)/i);
@@ -56,40 +59,12 @@ const String scraperJsCode = r'''
                     }
                 }
             }
-
             if (commentCount === 0 && ratingsCount > 0) commentCount = ratingsCount;
             if (ratingsCount > 0 && commentCount > ratingsCount) commentCount = ratingsCount;
-
-            const result = {
-                extracted_data: {
-                    score: score || 0,
-                    total_ratings: ratingsCount || 0,
-                    total_reviews: commentCount || 0,
-                    photo_reviews_count: hbPhotoCount || 0,
-                    debug_source: 'MOBILE_HB_V9'
-                }
-            };
-            return JSON.stringify(result);
+            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V10' } });
         }
 
-        // Generic fallback for others
-        const scoreEls = ['.pr-in-rnr-v', '[itemprop="ratingValue"]'];
-        for (const sel of scoreEls) {
-            const el = document.querySelector(sel);
-            if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
-        }
-
-        const finalResult = {
-            extracted_data: {
-                score: score || 0,
-                total_ratings: ratingsCount || 0,
-                total_reviews: commentCount,
-                photo_reviews_count: 0
-            }
-        };
-        return JSON.stringify(finalResult);
-    } catch (e) {
-        return JSON.stringify({ error: e.message });
-    }
+        return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: 0 } });
+    } catch (e) { return JSON.stringify({ error: e.message }); }
 })();
 ''';
