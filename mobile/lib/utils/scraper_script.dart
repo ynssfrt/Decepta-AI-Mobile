@@ -3,38 +3,28 @@ const String scraperJsCode = r'''
     try {
         const url = window.location.href;
         const bodyText = document.body.innerText;
-        const isTrendyol = url.includes('trendyol.com');
         const isHepsiburada = url.includes('hepsiburada.com');
         
         let score = 0;
         let ratingsCount = 0;
         let commentCount = 0;
-        let comments = [];
-        
-        // 1. Metadata
-        const scoreEls = ['.pr-in-rnr-v', '[class*="RatingPointer"]', '[itemprop="ratingValue"]'];
-        for (const sel of scoreEls) {
-            const el = document.querySelector(sel);
-            if (el) {
-                const val = parseFloat((el.getAttribute('content') || el.innerText || '').trim().replace(',', '.'));
-                if (val > 0 && val <= 5) { score = val; break; }
-            }
-        }
-        const countEls = ['.rvw-cnt-tx', '.total-review-count', '[itemprop="ratingCount"]'];
-        for (const sel of countEls) {
-            const el = document.querySelector(sel);
-            if (el) {
-                const m = el.innerText.match(/(\d[\d.]*)/);
-                if (m) { ratingsCount = parseInt(m[1].replace(/\./g, '')); break; }
-            }
-        }
 
-        // 2. HEPSİBURADA: BULLETPROOF (v8.5)
+        // ========== HEPSİBURADA: ÖNCELİKLİ AYIKLAMA (v9) ==========
         if (isHepsiburada) {
             let hbPhotoCount = 0;
             let hbSuccess = false;
-            
-            const tabs = document.querySelectorAll('button[class*="hermes"], a[class*="hermes"], [class*="ratingCount"]');
+
+            const countEl = document.querySelector('[class*="ReviewSummary"] [class*="count"]') || document.querySelector('[itemprop="ratingCount"]');
+            if (countEl) {
+                const m = countEl.innerText.match(/(\d[\d.]*)/);
+                if (m) ratingsCount = parseInt(m[1].replace(/\./g, ''));
+            }
+            const scoreEl = document.querySelector('[class*="RatingPointer"]') || document.querySelector('[itemprop="ratingValue"]');
+            if (scoreEl) {
+                score = parseFloat((scoreEl.getAttribute('content') || scoreEl.innerText || '').replace(',', '.'));
+            }
+
+            const tabs = document.querySelectorAll('button, a, span, b, .hermes-ReviewSummary-module-ratingCount');
             tabs.forEach(el => {
                 const txt = el.innerText || '';
                 const mYorum = txt.match(/Yorum(?:lar)?\s*\((\d+)\)/i);
@@ -76,10 +66,17 @@ const String scraperJsCode = r'''
                     total_ratings: ratingsCount || 0,
                     total_reviews: commentCount || 0,
                     photo_reviews_count: hbPhotoCount || 0,
-                    debug_source: 'MOBILE_HB_V8.5'
+                    debug_source: 'MOBILE_HB_V9'
                 }
             };
             return JSON.stringify(result);
+        }
+
+        // Generic fallback for others
+        const scoreEls = ['.pr-in-rnr-v', '[itemprop="ratingValue"]'];
+        for (const sel of scoreEls) {
+            const el = document.querySelector(sel);
+            if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
         }
 
         const finalResult = {
