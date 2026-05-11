@@ -11,8 +11,8 @@ const String scraperJsCode = r'''
         let commentCount = 0;
         let comments = [];
         let detailedReviews = [];
-        let debug_source = '';
-
+        
+        // 1. __NEXT_DATA__
         const nextDataEl = document.getElementById('__NEXT_DATA__');
         if (nextDataEl) {
             try {
@@ -44,10 +44,6 @@ const String scraperJsCode = r'''
                     const counts = []; findAll(nd, 'ratingCount', counts, 0);
                     if (counts.length > 0) ratingsCount = parseInt(counts[0]);
                 }
-                if (ratingsCount === 0) {
-                    const totals = []; findAll(nd, 'totalRatingCount', totals, 0);
-                    if (totals.length > 0) ratingsCount = parseInt(totals[0]);
-                }
                 
                 const reviewKeys = ['productReviews', 'reviews', 'userReviews'];
                 for (const key of reviewKeys) {
@@ -62,7 +58,6 @@ const String scraperJsCode = r'''
                                 } else if (r.images) {
                                     r.images.forEach(img => { if (img.url) imgs.push(img.url); else if (typeof img === 'string') imgs.push(img); });
                                 }
-                                
                                 if (typeof txt === 'string' && txt.length > 2) {
                                     const cleanTxt = txt.trim();
                                     if (!comments.includes(cleanTxt)) {
@@ -78,50 +73,7 @@ const String scraperJsCode = r'''
             } catch(e) {}
         }
 
-        if (comments.length === 0) {
-            const containerSelectors = ['.rnr-com-w', '.pr-rvw-crd', '[class*="review-card"]', '[class*="reviewCard"]', '.review', '[class*="hermes-ReviewCard-module"]', '[class*="ReviewCard"]'];
-            for (const sel of containerSelectors) {
-                const cards = document.querySelectorAll(sel);
-                if (cards.length > 0) {
-                    cards.forEach(el => {
-                        const textSelectors = ['.rnr-com-tx', '.comment-text', '.review-comment', '.review-text', '.pr-rvw-crd-tx', '[itemprop="description"]', '[class*="review-comment"]', '[class*="ReviewCard-module"] p', 'p'];
-                        let txt = "";
-                        for (const tsel of textSelectors) {
-                            const textEl = el.querySelector(tsel);
-                            if (textEl && textEl.innerText.trim().length > 2) { txt = textEl.innerText.trim(); break; }
-                        }
-                        
-                        const imgs = [];
-                        const isReviewPhoto = (img) => {
-                            const src = img.src || img.dataset?.src || '';
-                            if (!src || src.startsWith('data:')) return false;
-                            const excludePatterns = ['avatar', 'star', 'icon', 'svg', 'badge', 'logo', 'emoji', 'placeholder'];
-                            if (excludePatterns.some(p => src.toLowerCase().includes(p))) return false;
-                            const w = img.naturalWidth || img.width || 0;
-                            const h = img.naturalHeight || img.height || 0;
-                            if ((w > 0 && w < 40) || (h > 0 && h < 40)) return false;
-                            return true;
-                        };
-                        el.querySelectorAll('img').forEach(img => {
-                            if (isReviewPhoto(img)) {
-                                const src = img.src || img.dataset?.src;
-                                if (src && !imgs.includes(src)) imgs.push(src);
-                            }
-                        });
-
-                        if (txt.length > 2 || imgs.length > 0) {
-                            const finalTxt = txt.length > 2 ? txt : (imgs.length > 0 ? '[Sadece Görsel]' : '');
-                            if (finalTxt && !comments.includes(finalTxt)) {
-                                comments.push(finalTxt);
-                                detailedReviews.push({ text: finalTxt, images: imgs });
-                            }
-                        }
-                    });
-                    if (comments.length > 0) break;
-                }
-            }
-        }
-
+        // 2. DOM Metadata (Rating & Count)
         if (score === 0) {
             const scoreEls = ['.pr-in-rnr-v', '.pr-rnr-p-s', '.rnr-avg-rnr-v', '[class*="RatingPointer"]', '[class*="ratingPointer"]', '[itemprop="ratingValue"]'];
             for (const sel of scoreEls) {
@@ -133,7 +85,6 @@ const String scraperJsCode = r'''
                 }
             }
         }
-
         if (ratingsCount === 0) {
             const countEls = ['a.reviews-summary-reviews-detail b', '.rvw-cnt-tx', '.total-review-count', '[class*="ReviewSummary"] [class*="count"]', '[itemprop="ratingCount"]', '[itemprop="reviewCount"]'];
             for (const sel of countEls) {
@@ -146,68 +97,67 @@ const String scraperJsCode = r'''
             }
         }
 
-        if (isHepsiburada && (score === 0 || ratingsCount === 0)) {
-            try {
-                const scripts = document.querySelectorAll('script');
-                for (const script of scripts) {
-                    const text = script.textContent || '';
-                    if (text.includes('review_count') || text.includes('review_rate')) {
-                        const rateMatch = text.match(/["']?review_rate["']?\s*[:=]\s*["']?([\d.,]+)/);
-                        const countMatch = text.match(/["']?review_count["']?\s*[:=]\s*["']?(\d[\d.]*)/);
-                        if (rateMatch && score === 0) {
-                            const val = parseFloat(rateMatch[1].replace(',', '.'));
-                            if (val > 0 && val <= 5) { score = val; }
+        // 3. HEPSİBURADA: ÖZEL AYIKLAMA (v8)
+        if (isHepsiburada) {
+            commentCount = 0;
+            let hbPhotoCount = 0;
+            let hbSuccess = false;
+
+            const scripts = document.querySelectorAll('script');
+            for (let i = 0; i < scripts.length; i++) {
+                const txt = scripts[i].textContent || '';
+                if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
+                    try {
+                        const jsonMatch = txt.match(/__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});/);
+                        if (jsonMatch) {
+                            const state = JSON.parse(jsonMatch[1]);
+                            if (state.ratingSummary && state.ratingSummary.totalReviewCount) {
+                                ratingsCount = parseInt(state.ratingSummary.totalReviewCount);
+                            }
+                            if (state.productReviews && state.productReviews.totalReviewCount) {
+                                commentCount = parseInt(state.productReviews.totalReviewCount);
+                                hbSuccess = true;
+                            }
+                            if (state.mediaSummary && state.mediaSummary.approvedMediaReviewCount) {
+                                hbPhotoCount = parseInt(state.mediaSummary.approvedMediaReviewCount);
+                            } else if (state.productReviews && state.productReviews.mediaCount) {
+                                hbPhotoCount = parseInt(state.productReviews.mediaCount);
+                            }
                         }
-                        if (countMatch && ratingsCount === 0) { ratingsCount = parseInt(countMatch[1].replace(/\./g, '')); }
-                        break;
+                    } catch (e) {
+                        const prMatch = txt.match(/"productReviews"\s*:\s*\{[^}]*?"totalReviewCount"\s*:\s*(\d+)/);
+                        if (prMatch) { commentCount = parseInt(prMatch[1]); hbSuccess = true; }
+                        const mediaMatch = txt.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/) || txt.match(/"mediaCount"\s*:\s*(\d+)/);
+                        if (mediaMatch) hbPhotoCount = parseInt(mediaMatch[1]);
+                    }
+                    break;
+                }
+            }
+
+            if (!hbSuccess || commentCount === 0) {
+                const pagText = bodyText.match(/(\d+)\s*-\s*(\d+)\s*\/\s*(\d+)/) || bodyText.match(/toplam\s*(\d+)\s*yorum/i);
+                if (pagText) {
+                    const val = parseInt(pagText[3] || pagText[1]);
+                    if (val > 0 && val < ratingsCount) {
+                        commentCount = val;
+                        hbSuccess = true;
                     }
                 }
-            } catch(e) {}
+            }
+
+            if (hbPhotoCount === 0) {
+                const galleryImgs = document.querySelectorAll('[class*="ImageGallery"] img, [class*="media-gallery"] img, [class*="review-image"] img');
+                const photoSet = new Set();
+                galleryImgs.forEach(img => {
+                    const src = img.src || '';
+                    if (src && !src.includes('avatar') && !src.includes('star') && (img.width > 40 || img.naturalWidth > 40)) { photoSet.add(src); }
+                });
+                if (photoSet.size > 0) hbPhotoCount = photoSet.size;
+            }
+            if (hbPhotoCount > 0) window.__hb_photoCount = hbPhotoCount;
         }
 
-        if (score === 0 || ratingsCount === 0) {
-            document.querySelectorAll('script[type="application/ld+json"]').forEach(script => {
-                try {
-                    const raw = script.textContent;
-                    if (!raw) return;
-                    const data = JSON.parse(raw);
-                    const check = (item) => {
-                        if (item && item.aggregateRating) {
-                            if (!score) {
-                                const val = parseFloat(item.aggregateRating.ratingValue || 0);
-                                if (val > 0 && val <= 5) { score = val; }
-                            }
-                            if (!ratingsCount) ratingsCount = parseInt(item.aggregateRating.ratingCount || item.aggregateRating.reviewCount || 0);
-                        }
-                    };
-                    if (Array.isArray(data)) data.forEach(check);
-                    else check(data);
-                } catch(e) {}
-            });
-        }
-
-        if (score === 0) {
-            const patterns = [/Tüm Değerlendirmeler[\s\S]{0,5}(\d[.,]?\d)/i, /(\d[.,]\d)[\s\S]{0,30}Değerlendirme/i, /(\d[.,]\d)\s*[★☆⭐·|]/, /(\d[.,]\d)\s*(?:puan|yıldız|\(|\/\s*5)/i];
-            for (const pat of patterns) {
-                const m = bodyText.match(pat);
-                if (m) {
-                    let val = parseFloat(m[1].replace(',', '.'));
-                    if (val >= 1 && val <= 5.0) { score = val; break; }
-                }
-            }
-        }
-        
-        if (ratingsCount === 0) {
-            const ratingPatterns = [/(\d[\d.]*)\s*(?:değerlendirme|oy|rating)/i, /[Dd]eğerlendirme(?:ler)?\s+(\d[\d.]*)/];
-            for (const pat of ratingPatterns) {
-                const m = bodyText.match(pat);
-                if (m) {
-                    const raw = m[1] || m[2];
-                    if (raw) { ratingsCount = parseInt(raw.replace(/\./g, '')); break; }
-                }
-            }
-        }
-        
+        // 4. Fallback counts
         if (commentCount === 0) {
             const patterns = [/(\d[\d.]*)\s*[Yy]orum/, /[Yy]orum(?:lar)?\s*\(?(\d[\d.]*)\)?/, /(\d[\d.]*)\s*(?:yorum|review|comment)/i];
             for (const pat of patterns) {
@@ -221,91 +171,25 @@ const String scraperJsCode = r'''
                 }
             }
         }
-
-        // ========== HEPSİBURADA: ÖZEL AYIKLAMA (v8) ==========
-        if (isHepsiburada) {
-            commentCount = 0;
-            let hbPhotoCount = 0;
-            let hbSuccess = false;
-
-            // 1. ADIM: Script Verisi
-            const scripts = document.querySelectorAll('script');
-            for (let i = 0; i < scripts.length; i++) {
-                const txt = scripts[i].textContent || '';
-                if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
-                        
-                        let productReviewsCount = 0;
-                        const prIndex = stateTxt.indexOf('"productReviews"');
-                        if (prIndex > -1) {
-                            const prBlock = stateTxt.substring(prIndex, prIndex + 500);
-                            const prMatch = prBlock.match(/"totalReviewCount"\s*:\s*(\d+)/);
-                            if (prMatch) productReviewsCount = parseInt(prMatch[1]);
-                        }
-                        
-                        if (ratingSummaryCount > 0 && productReviewsCount > 0 && productReviewsCount !== ratingSummaryCount) {
-                            commentCount = Math.min(ratingSummaryCount, productReviewsCount);
-                            hbSuccess = true;
-                        } else if (productReviewsCount > 0) {
-                            commentCount = productReviewsCount;
-                            hbSuccess = true;
-                        } else if (ratingSummaryCount > 0) {
-                            const pageCountMatch = stateTxt.match(/"pageCount"\s*:\s*(\d+)/);
-                            const pageSizeMatch = stateTxt.match(/"pageSize"\s*:\s*(\d+)/);
-                            if (pageCountMatch) {
-                                const pageCount = parseInt(pageCountMatch[1]);
-                                const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1]) : 5;
-                                const estimatedReviews = pageCount * pageSize;
-                                if (estimatedReviews < ratingSummaryCount) {
-                                    commentCount = estimatedReviews;
-                                    hbSuccess = true;
-                                }
-                            }
-                            if (!hbSuccess) {
-                                commentCount = ratingSummaryCount;
-                                hbSuccess = true;
-                            }
-                        }
-                    }
-                    
-                    break;
-                }
-            }
-            
-            // YÖNTEM 3: "(52 Değerlendirme)" metninden son çare
-            if (!hbSuccess) {
-                const evalMatch = bodyText.match(/\((\d[\d.]*)\s*[Dd]eğerlendirme\)/);
-                if (evalMatch) {
-                    commentCount = parseInt(evalMatch[1].replace(/\./g, ''));
-                    hbSuccess = true;
-                }
-            }
-        }
         if (commentCount === 0 && !isHepsiburada) commentCount = comments.length;
 
         let photoReviewsCount = 0;
         if (isHepsiburada && typeof window.__hb_photoCount !== 'undefined') {
             photoReviewsCount = window.__hb_photoCount;
-        }
-        if (photoReviewsCount === 0 && !isHepsiburada) {
-            const photoPatterns = [
-                /[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/,
-                /(\d[\d.]*)\s*(?:adet\s*)?fotoğraflı/i,
-            ];
+        } else {
+            const photoPatterns = [/[Ff]oto(?:ğ|g)rafl[ıi]\s*\(?(\d[\d.]*)\)?/, /(\d[\d.]*)\s*(?:adet\s*)?fotoğraflı/i];
             for (const pat of photoPatterns) {
                 const m = bodyText.match(pat);
                 if (m) { photoReviewsCount = parseInt(m[1].replace(/\./g, '')); break; }
             }
+            if (photoReviewsCount === 0) {
+                photoReviewsCount = detailedReviews.filter(r => r.images && r.images.length > 0).length;
+            }
         }
 
-        if (photoReviewsCount === 0 && !isHepsiburada) {
-            photoReviewsCount = detailedReviews.filter(r => r.images && r.images.length > 0).length;
-        }
-
-        // MANTIK KONTROLÜ: Fotoğraflı yorum, toplam sayıyı aşamaz
+        // MANTIK KONTROLÜ
         const maxReasonable = Math.max(commentCount, ratingsCount);
-        if (maxReasonable > 0 && photoReviewsCount > maxReasonable) {
-            photoReviewsCount = Math.min(photoReviewsCount, maxReasonable);
-        }
+        if (maxReasonable > 0 && photoReviewsCount > maxReasonable) photoReviewsCount = maxReasonable;
 
         const result = {
             extracted_data: {
@@ -320,14 +204,9 @@ const String scraperJsCode = r'''
             html: document.documentElement.outerHTML.substring(0, 1000), 
             text: bodyText.substring(0, 1000)
         };
-        
         return JSON.stringify(result);
-        
     } catch (e) {
-        return JSON.stringify({ 
-            error: e.message,
-            extracted_data: { score: 0, total_ratings: 0, total_reviews: 0, comments: [], detailed_reviews: [], photo_reviews_count: 0 } 
-        });
+        return JSON.stringify({ error: e.message, extracted_data: { score: 0, total_ratings: 0, total_reviews: 0, comments: [], detailed_reviews: [], photo_reviews_count: 0 } });
     }
 })();
 ''';
