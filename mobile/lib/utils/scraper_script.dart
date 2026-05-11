@@ -5,30 +5,37 @@ const String scraperJsCode = r'''
         const bodyText = document.body.innerText;
         const isHepsiburada = url.includes('hepsiburada.com');
         
-        let score = 0;
-        let ratingsCount = 0;
-        let commentCount = 0;
+        let score = 0, ratingsCount = 0, commentCount = 0, hbPhotoCount = 0;
 
-        // 1. Metadata
+        // 1. Metadata (Aggressive)
         const scoreEls = ['.pr-in-rnr-v', '[class*="RatingPointer"]', '[itemprop="ratingValue"]'];
         for (const sel of scoreEls) {
             const el = document.querySelector(sel);
             if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
         }
-        const countEls = ['.rvw-cnt-tx', '.total-review-count', '[itemprop="ratingCount"]'];
-        for (const sel of countEls) {
-            const el = document.querySelector(sel);
-            if (el) {
-                const m = el.innerText.match(/(\d[\d.]*)/);
-                if (m) { ratingsCount = parseInt(m[1].replace(/\./g, '')); break; }
-            }
+        if (score === 0) {
+            const m = bodyText.match(/(\d[.,]\d)\s*(?:puan|yıldız|★)/i);
+            if (m) score = parseFloat(m[1].replace(',', '.'));
         }
 
-        // 2. HEPSİBURADA: FINAL (v10)
+        const countEls = ['.rvw-cnt-tx', '[itemprop="ratingCount"]', '[class*="count"]'];
+        for (const sel of countEls) {
+            const els = document.querySelectorAll(sel);
+            for (const el of els) {
+                const m = el.innerText.match(/(\d+)/);
+                if (m) { const v = parseInt(m[1]); if (v > ratingsCount) ratingsCount = v; }
+            }
+        }
+        if (ratingsCount === 0) {
+            const m = bodyText.match(/(\d+)\s*[Dd]eğerlendirme/);
+            if (m) ratingsCount = parseInt(m[1]);
+        }
+
+        // 2. HEPSİBURADA: v11
         if (isHepsiburada) {
-            let hbPhotoCount = 0, hbSuccess = false;
-            const tabs = document.querySelectorAll('button, a, span, b, [class*="hermes"]');
-            tabs.forEach(el => {
+            let hbSuccess = false;
+            const elements = document.querySelectorAll('button, a, span, b, div[class*="hermes"]');
+            elements.forEach(el => {
                 const txt = el.innerText || '';
                 const mYorum = txt.match(/Yorum(?:lar)?\s*\((\d+)\)/i);
                 if (mYorum && (!hbSuccess || commentCount === 0)) { commentCount = parseInt(mYorum[1]); hbSuccess = true; }
@@ -52,7 +59,7 @@ const String scraperJsCode = r'''
                                 const state = JSON.parse(txt.substring(start, end + 1));
                                 if (!ratingsCount) ratingsCount = state.ratingSummary?.totalReviewCount || 0;
                                 if (!hbSuccess) { commentCount = state.productReviews?.totalReviewCount || 0; hbSuccess = true; }
-                                if (hbPhotoCount === 0) hbPhotoCount = state.mediaSummary?.approvedMediaReviewCount || 0;
+                                if (hbPhotoCount === 0) hbPhotoCount = state.mediaSummary?.approvedMediaReviewCount || state.productReviews?.mediaCount || 0;
                             }
                         } catch (e) {}
                         break;
@@ -61,7 +68,7 @@ const String scraperJsCode = r'''
             }
             if (commentCount === 0 && ratingsCount > 0) commentCount = ratingsCount;
             if (ratingsCount > 0 && commentCount > ratingsCount) commentCount = ratingsCount;
-            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V10' } });
+            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V11' } });
         }
 
         return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: 0 } });
