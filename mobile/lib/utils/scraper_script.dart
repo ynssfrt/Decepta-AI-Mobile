@@ -14,33 +14,32 @@ const String scraperJsCode = r'''
             const el = document.querySelector(sel);
             if (el) { score = parseFloat((el.getAttribute('content') || el.innerText || '').replace(',', '.')); break; }
         }
-        if (ratingsCount === 0) {
-            const m = bodyText.match(/(\d+)\s*[Dd]eğerlendirme/);
-            if (m) ratingsCount = parseInt(m[1]);
-        }
+        const mRatings = bodyText.match(/(\d+)\s*[Dd]eğerlendirme/);
+        if (mRatings) ratingsCount = parseInt(mRatings[1]);
 
-        // 2. HEPSİBURADA: v17
+        // 2. HEPSİBURADA: v18
         if (isHepsiburada) {
-            let hbSuccess = false;
-            // JSON
-            const mR = html.match(/"productReviews"[\s\S]{0,1000}?"totalReviewCount"\s*:\s*(\d+)/);
-            if (mR) { commentCount = parseInt(mR[1]); hbSuccess = true; }
-            const mP = html.match(/"mediaSummary"[\s\S]{0,1000}?"approvedMediaReviewCount"\s*:\s*(\d+)/);
+            const allCounts = [];
+            const matches = html.match(/"totalReviewCount"\s*:\s*(\d+)/g);
+            if (matches) {
+                matches.forEach(m => {
+                    const val = parseInt(m.match(/(\d+)/)[1]);
+                    if (val > 0 && val < 1000000) allCounts.push(val);
+                });
+            }
+            if (allCounts.length > 0) {
+                if (!ratingsCount) ratingsCount = Math.max(...allCounts);
+                const candidates = allCounts.filter(v => v !== ratingsCount).sort((a,b) => b-a);
+                if (candidates.length > 0) commentCount = candidates[0];
+            }
+            const mP = html.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/) || html.match(/"mediaCount"\s*:\s*(\d+)/);
             if (mP) hbPhotoCount = parseInt(mP[1]);
 
-            // Text
-            if (!hbSuccess) {
-                const mY = bodyText.match(/[Yy]orum(?:lar)?\s*\(\s*(\d+)\s*\)/i);
-                if (mY) { commentCount = parseInt(mY[1]); hbSuccess = true; }
-            }
-            if (commentCount === 0) {
-                const mT = bodyText.match(/toplam\s+(\d+)\s+yorum/i);
-                if (mT) { commentCount = parseInt(mT[1]); hbSuccess = true; }
-            }
-            if (commentCount > 1000000) commentCount = 0;
             if (commentCount === 0 && ratingsCount > 0) commentCount = ratingsCount;
-            if (ratingsCount > 0 && commentCount > ratingsCount) commentCount = ratingsCount;
-            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V17' } });
+            if (ratingsCount > 0 && commentCount > ratingsCount) {
+                const temp = ratingsCount; ratingsCount = commentCount; commentCount = temp;
+            }
+            return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: hbPhotoCount, debug_source: 'MOBILE_V18' } });
         }
 
         return JSON.stringify({ extracted_data: { score, total_ratings: ratingsCount, total_reviews: commentCount, photo_reviews_count: 0 } });
