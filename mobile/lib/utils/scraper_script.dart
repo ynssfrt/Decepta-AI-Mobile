@@ -11,6 +11,7 @@ const String scraperJsCode = r'''
         let commentCount = 0;
         let comments = [];
         let detailedReviews = [];
+        let hb_done = false;
         
         // 1. __NEXT_DATA__
         const nextDataEl = document.getElementById('__NEXT_DATA__');
@@ -94,7 +95,7 @@ const String scraperJsCode = r'''
             }
         }
 
-        // 3. HEPSİBURADA: ÖZEL AYIKLAMA (v8.1)
+        // 3. HEPSİBURADA: ÖZEL AYIKLAMA (v8.2)
         if (isHepsiburada) {
             let hbPhotoCount = 0;
             let hbSuccess = false;
@@ -103,7 +104,7 @@ const String scraperJsCode = r'''
                 const txt = scripts[i].textContent || '';
                 if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
                     try {
-                        const jsonMatch = txt.match(/__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\})(?:;|$)/);
+                        const jsonMatch = txt.match(/__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{.*\})(?:;|$)/);
                         if (jsonMatch) {
                             const state = JSON.parse(jsonMatch[1]);
                             if (state.ratingSummary && state.ratingSummary.totalReviewCount) {
@@ -152,10 +153,11 @@ const String scraperJsCode = r'''
                 if (photoSet.size > 0) hbPhotoCount = photoSet.size;
             }
             if (hbPhotoCount > 0) window.__hb_photoCount = hbPhotoCount;
+            if (commentCount > 0) hb_done = true;
         }
 
         // 4. Fallback counts
-        if (commentCount === 0) {
+        if (commentCount === 0 && !hb_done) {
             const patterns = [/(\d[\d.]*)\s*[Yy]orum/, /[Yy]orum(?:lar)?\s*\(?(\d[\d.]*)\)?/, /(\d[\d.]*)\s*(?:yorum|review|comment)/i];
             for (const pat of patterns) {
                 const m = bodyText.match(pat);
