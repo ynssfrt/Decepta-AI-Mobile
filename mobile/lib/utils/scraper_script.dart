@@ -22,7 +22,6 @@ const String scraperJsCode = r'''
                     if (key in obj) found.push(obj[key]);
                     for (const k of Object.keys(obj)) findAll(obj[k], key, found, depth + 1);
                 };
-                
                 try {
                     const product = nd?.props?.pageProps?.product;
                     if (product && product.ratingScore) {
@@ -32,7 +31,6 @@ const String scraperJsCode = r'''
                         if (!ratingsCount && product.totalRatingCount) ratingsCount = parseInt(product.totalRatingCount);
                     }
                 } catch(e) {}
-                
                 if (score === 0) {
                     const scores = []; findAll(nd, 'ratingScore', scores, 0);
                     for (const s of scores) {
@@ -44,7 +42,6 @@ const String scraperJsCode = r'''
                     const counts = []; findAll(nd, 'ratingCount', counts, 0);
                     if (counts.length > 0) ratingsCount = parseInt(counts[0]);
                 }
-                
                 const reviewKeys = ['productReviews', 'reviews', 'userReviews'];
                 for (const key of reviewKeys) {
                     const arrs = []; findAll(nd, key, arrs, 0);
@@ -97,18 +94,16 @@ const String scraperJsCode = r'''
             }
         }
 
-        // 3. HEPSİBURADA: ÖZEL AYIKLAMA (v8)
+        // 3. HEPSİBURADA: ÖZEL AYIKLAMA (v8.1)
         if (isHepsiburada) {
-            commentCount = 0;
             let hbPhotoCount = 0;
             let hbSuccess = false;
-
             const scripts = document.querySelectorAll('script');
             for (let i = 0; i < scripts.length; i++) {
                 const txt = scripts[i].textContent || '';
                 if (txt.includes('__HB_REVIEWS_INITIAL_STATE__')) {
                     try {
-                        const jsonMatch = txt.match(/__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});/);
+                        const jsonMatch = txt.match(/__HB_REVIEWS_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\})(?:;|$)/);
                         if (jsonMatch) {
                             const state = JSON.parse(jsonMatch[1]);
                             if (state.ratingSummary && state.ratingSummary.totalReviewCount) {
@@ -124,27 +119,29 @@ const String scraperJsCode = r'''
                                 hbPhotoCount = parseInt(state.productReviews.mediaCount);
                             }
                         }
-                    } catch (e) {
+                    } catch (e) {}
+                    if (!hbSuccess) {
                         const prMatch = txt.match(/"productReviews"\s*:\s*\{[^}]*?"totalReviewCount"\s*:\s*(\d+)/);
                         if (prMatch) { commentCount = parseInt(prMatch[1]); hbSuccess = true; }
+                    }
+                    if (hbPhotoCount === 0) {
                         const mediaMatch = txt.match(/"approvedMediaReviewCount"\s*:\s*(\d+)/) || txt.match(/"mediaCount"\s*:\s*(\d+)/);
                         if (mediaMatch) hbPhotoCount = parseInt(mediaMatch[1]);
                     }
                     break;
                 }
             }
-
             if (!hbSuccess || commentCount === 0) {
                 const pagText = bodyText.match(/(\d+)\s*-\s*(\d+)\s*\/\s*(\d+)/) || bodyText.match(/toplam\s*(\d+)\s*yorum/i);
                 if (pagText) {
                     const val = parseInt(pagText[3] || pagText[1]);
-                    if (val > 0 && val < ratingsCount) {
-                        commentCount = val;
-                        hbSuccess = true;
-                    }
+                    if (val > 0 && val <= (ratingsCount || 10000)) { commentCount = val; hbSuccess = true; }
                 }
             }
-
+            if (!hbSuccess || commentCount === 0) {
+                const cards = document.querySelectorAll('[class*="ReviewCard"], [class*="hermes-ReviewCard"]');
+                if (cards.length > 0) commentCount = cards.length;
+            }
             if (hbPhotoCount === 0) {
                 const galleryImgs = document.querySelectorAll('[class*="ImageGallery"] img, [class*="media-gallery"] img, [class*="review-image"] img');
                 const photoSet = new Set();
@@ -172,7 +169,6 @@ const String scraperJsCode = r'''
             }
         }
         if (commentCount === 0 && !isHepsiburada) commentCount = comments.length;
-
         let photoReviewsCount = 0;
         if (isHepsiburada && typeof window.__hb_photoCount !== 'undefined') {
             photoReviewsCount = window.__hb_photoCount;
@@ -182,12 +178,8 @@ const String scraperJsCode = r'''
                 const m = bodyText.match(pat);
                 if (m) { photoReviewsCount = parseInt(m[1].replace(/\./g, '')); break; }
             }
-            if (photoReviewsCount === 0) {
-                photoReviewsCount = detailedReviews.filter(r => r.images && r.images.length > 0).length;
-            }
+            if (photoReviewsCount === 0) { photoReviewsCount = detailedReviews.filter(r => r.images && r.images.length > 0).length; }
         }
-
-        // MANTIK KONTROLÜ
         const maxReasonable = Math.max(commentCount, ratingsCount);
         if (maxReasonable > 0 && photoReviewsCount > maxReasonable) photoReviewsCount = maxReasonable;
 
