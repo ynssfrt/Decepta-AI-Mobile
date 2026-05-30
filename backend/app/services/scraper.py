@@ -248,12 +248,12 @@ class PlaywrightScraper:
             cards = self.soup.select('.review-cart-wrapper__list > .review-card, .review-cart-wrapper__list > .card-wrapper, .card-wrapper.review-card.rounded')
             for card in cards:
                 text_el = card.select_one('.card-detail__contents')
-                if text_el and len(text_el.text.strip()) > 2:
+                if text_el and len(text_el.text.strip()) > 0:
                     comments.append(text_el.text.strip())
             # Product details page fallback
             if not comments:
                 for el in self.soup.select('.commentText, .commentDetail p'):
-                    if len(el.text.strip()) > 2:
+                    if len(el.text.strip()) > 0:
                         comments.append(el.text.strip())
         elif "hepsiburada.com" in self.url.lower():
             all_cards = self.soup.find_all(class_=lambda c: c and any("ReviewCard" in x for x in c.split()))
@@ -274,7 +274,7 @@ class PlaywrightScraper:
                 ]
                 for sel in text_selectors:
                     el = card.select_one(sel)
-                    if el and len(el.text.strip()) > 2:
+                    if el and len(el.text.strip()) > 0:
                         comments.append(el.text.strip())
                         break
         elif "trendyol.com" in self.url.lower():
@@ -287,7 +287,7 @@ class PlaywrightScraper:
             ]
             for sel in text_selectors:
                 for el in self.soup.select(sel):
-                    if len(el.text.strip()) > 2:
+                    if len(el.text.strip()) > 0:
                         comments.append(el.text.strip())
                         
         if comments:

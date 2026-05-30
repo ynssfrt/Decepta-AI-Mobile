@@ -61,17 +61,33 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
         
         true_review_count = total_reviews if total_reviews > 0 else len(real_comments)
         
-        TASKS_DB[task_id]["current_step"] = f"2/3: NLP Analizi Yapılıyor ({len(real_comments)} organik değerlendirme)..."
-        TASKS_DB[task_id]["progress"] = 60
-        
-        from ai.src.preprocessing.text_cleaner import clean_text, calculate_text_complexity
-        from collections import Counter
+        # Yorumları ReviewDetector formatına dönüştür ve zenginleştir
+        review_dicts = []
+        if detailed_reviews:
+            for r in detailed_reviews:
+                review_dicts.append({
+                    "text": r.get("text", ""),
+                    "images": r.get("images", []),
+                    "rating": r.get("rating"),
+                    "date": r.get("date"),
+                    "author": r.get("author")
+                })
+        else:
+            # Fallback: Eğer detailed_reviews yoksa real_comments listesinden üret
+            for c in real_comments:
+                review_dicts.append({
+                    "text": c,
+                    "images": [],
+                    "rating": None,
+                    "date": None,
+                    "author": None
+                })
         
         suspicious_list = []
         
         # Resim Analizi Modülü (Computer Vision)
         TASKS_DB[task_id]["current_step"] = "2/3: Görüntü Analizi Yapılıyor..."
-        TASKS_DB[task_id]["progress"] = 55
+        TASKS_DB[task_id]["progress"] = 50
         
         photo_reviews_count = 0
         # Öncelik: Extension'dan doğrudan gelen photo_reviews_count
@@ -89,64 +105,40 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
             except Exception as img_err:
                 logger.warning(f"Görüntü analizi başarısız (devam ediliyor): {img_err}")
             
-        TASKS_DB[task_id]["current_step"] = f"2/3: NLP Analizi Yapılıyor ({len(real_comments)} organik değerlendirme)..."
+        TASKS_DB[task_id]["current_step"] = f"2/3: NLP ve Gelişmiş Ağ Analizi Yapılıyor ({len(review_dicts)} organik değerlendirme)..."
         TASKS_DB[task_id]["progress"] = 65
         
-        if true_review_count <= 2:
+        if len(review_dicts) <= 2:
             bot_percentage = 0
             true_trust_score = actual_platform_score
         else:
-            for comment in real_comments:
-                cleaned = clean_text(comment)
-                if not cleaned: continue
-                
-                complexity = calculate_text_complexity(comment)
-                sentiment_result = sentiment_analyzer.analyze(cleaned)
-                
-                is_suspicious = False
-                reasons = []
-                
-                if complexity["avg_word_length"] > 15:
-                    is_suspicious = True
-                    reasons.append("Anlamsız ve aşırı uzun harf dizilimi içeriyor")
-                
-                # Dummy mod veya hata durumlarında bot tespiti yapma
-                if sentiment_result["label"] in ("UNKNOWN", "ERROR", "NEUTRAL"):
+            from ai.src.detection.detector import ReviewDetector
+            detector = ReviewDetector()
+            
+            # Gelişmiş Tespit Algoritmalarını Çalıştır
+            detection_result = detector.detect(review_dicts, sentiment_analyzer, actual_platform_score)
+            
+            # Detektörden gelen şüphelileri ekle
+            suspicious_list.extend(detection_result["suspicious_reviews"])
+            
+            # Resim ve NLP analizinden gelen şüpheleri birleştir (metin bazlı tekilleştir)
+            merged_suspicious = {}
+            for s in suspicious_list:
+                text = s.get("text", "").strip()
+                reason = s.get("reason", "").strip()
+                if not text:
                     continue
-                
-                if complexity["word_count"] < 3 and sentiment_result["label"] == "POSITIVE" and sentiment_result["score"] > 0.95:
-                    is_suspicious = True
-                    reasons.append("Aşırı kısa ama kesin pozitif (Spam bot paterni)")
-                
-                words = cleaned.split()
-                if len(words) > 0:
-                    most_common = Counter(words).most_common(1)[0]
-                    if most_common[1] > 3 and sentiment_result["label"] == "POSITIVE":
-                        is_suspicious = True
-                        reasons.append(f"Aşırı kelime tekrarı ('{most_common[0]}' kelimesi {most_common[1]} kez geçti)")
-                
-                if is_suspicious and sentiment_result["label"] == "POSITIVE":
-                    suspicious_list.append({
-                        "text": comment,
-                        "reason": " ve ".join(reasons) + f" (AI Güveni: {round(sentiment_result['score']*100)}%)"
-                    })
-
-            safe_bot_count = len(suspicious_list)
-            bot_percentage = int((safe_bot_count / max(1, len(real_comments))) * 100)
+                if text in merged_suspicious:
+                    existing_reasons = [r.strip() for r in merged_suspicious[text]["reason"].split("ve")]
+                    if reason not in existing_reasons:
+                        merged_suspicious[text]["reason"] += " ve " + reason
+                else:
+                    merged_suspicious[text] = {"text": text, "reason": reason}
+                    
+            suspicious_list = list(merged_suspicious.values())
             
-            num_ratings = total_ratings if total_ratings > 0 else true_review_count
-            suspected_bot_ratings = int(num_ratings * (bot_percentage / 100.0))
-            organic_ratings_count = max(0, num_ratings - suspected_bot_ratings)
-            
-            if organic_ratings_count <= 0 or num_ratings == 0:
-                true_trust_score = actual_platform_score
-            else:
-                total_points = num_ratings * actual_platform_score
-                bot_vote_value = 5.0 if actual_platform_score >= 3.0 else 1.0
-                bot_points = suspected_bot_ratings * bot_vote_value
-                organic_points = max(0, total_points - bot_points)
-                calculated_score = organic_points / organic_ratings_count
-                true_trust_score = round(max(1.0, min(5.0, calculated_score)), 1)
+            bot_percentage = detection_result["bot_percentage"]
+            true_trust_score = detection_result["calculated_trust_score"]
 
         TASKS_DB[task_id]["current_step"] = "3/3: Ağ Analizi Tamamlanıyor..."
         TASKS_DB[task_id]["progress"] = 85
