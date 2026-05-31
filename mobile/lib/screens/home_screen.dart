@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) async {
-            if (_isAnalyzing && _currentStep == "Sayfa yükleniyor...") {
+            if (_isAnalyzing && (_currentStep == "Sayfa yükleniyor..." || _currentStep == "Yorumlar sayfasına geçiliyor...")) {
               
               // Trendyol: Ürün sayfasındaysak /yorumlar sayfasına yönlendir
               if (url.contains('trendyol.com') && !url.contains('/yorumlar')) {
