@@ -268,8 +268,9 @@ class PlaywrightScraper:
                 text_selectors = [
                     '[itemprop="description"]',
                     '[class*="review-comment"]',
+                    'span[style*="text-align"]',
+                    'span:not([class])',
                     '[class*="ReviewCard-module"] p',
-                    'span[style*="text-align:start"]:not([class])',
                     'p'
                 ]
                 for sel in text_selectors:
