@@ -12,7 +12,7 @@ dependencies:
   http: ^1.2.0
   google_fonts: ^6.2.1
   webview_flutter: ^4.7.0
-  receive_sharing_intent: 1.5.0
+  receive_sharing_intent: ^1.8.1
 
 dev_dependencies:
   flutter_test:

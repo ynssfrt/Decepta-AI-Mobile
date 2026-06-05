@@ -2,9 +2,13 @@ from pydantic import BaseModel, HttpUrl
 from typing import Optional, List, Dict, Any
 
 class ScanRequest(BaseModel):
-    """Kullanıcının/Analistin taratmak için girdiği e-ticaret yorum URL'si şeması."""
+    """Flutter mobil uygulama veya web extension'dan gelen tarama isteği şeması."""
     url: HttpUrl
-    platform: Optional[str] = None  # Örn: 'trendyol', 'amazon' - Eğer null ise URL'den tespit edilir
+    platform: Optional[str] = None          # Örn: 'trendyol', 'hepsiburada'
+    # Flutter WebView kazıyıcısının gönderdiği alanlar:
+    html_content: Optional[str] = None      # Sayfa DOM içeriği (fallback scraper için)
+    text_content: Optional[str] = None      # Sayfa düz metin içeriği (fallback için)
+    extracted_data: Optional[Dict[str, Any]] = None  # JS kazıyıcı tarafından çıkarılan yapılandırılmış veri
 
 class ScanResponse(BaseModel):
     """Tarama başlatıldığında API'nin döndüğü anında yanıt şeması."""

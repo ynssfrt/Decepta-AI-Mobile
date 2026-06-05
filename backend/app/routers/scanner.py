@@ -137,7 +137,10 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
                     
             suspicious_list = list(merged_suspicious.values())
             
-            bot_percentage = detection_result["bot_percentage"]
+            # bot_percentage'ı birleştirme sonrası GERÇEK şüpheli sayısından hesapla
+            # (Detektörün orijinal değeri sadece NLP sonuçlarını kapsar;
+            #  ImageAnalyzer'dan gelen ekstra bulgular dahil değildir)
+            bot_percentage = int((len(suspicious_list) / max(1, true_review_count)) * 100) if true_review_count > 0 else detection_result["bot_percentage"]
             true_trust_score = detection_result["calculated_trust_score"]
 
         TASKS_DB[task_id]["current_step"] = "3/3: Ağ Analizi Tamamlanıyor..."
