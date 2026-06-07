@@ -114,11 +114,11 @@ flutter run
 | 2 | Veritabanı şemaları, Mobil wireframe | ✅ |
 | 3 | Veri ön işleme pipeline | ✅ |
 | 4 | HuggingFace duygu analizi | ✅ |
-| 5 | Neo4j entegrasyonu, graph algoritmaları | ⬜ |
+| 5 | Neo4j entegrasyonu, graph algoritmaları | ✅ |
 | 6 | Web scraping servisi | ✅ |
 | 7 | FastAPI backend kurulumu | ✅ |
 | 8 | Flutter mobil arayüz kodlama | ✅ |
-| 10 | E2E testler ve tam akış | ⬜ |
+| 10 | E2E testler ve tam akış | ✅ |
 | 11 | Cloud API deployment, MVP lansman | ⬜ |
 
 ---
