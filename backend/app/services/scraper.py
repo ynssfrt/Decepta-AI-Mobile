@@ -14,6 +14,7 @@ class PlaywrightScraper:
         self.text_content = ""
         self.soup = None
         self.is_waf_blocked = False
+        self.product_title = "Bilinmeyen Ürün"
 
     async def fetch_page(self):
         try:
@@ -72,6 +73,7 @@ class PlaywrightScraper:
                 self.html_content = await page.content()
                 self.text_content = await page.evaluate("document.body.innerText")
                 self.soup = BeautifulSoup(self.html_content, "html.parser")
+                self.product_title = await page.evaluate("document.title")
                 
                 # Check for WAF blocks (Cloudflare / DataDome)
                 is_waf = len(self.html_content) < 15000 or "cloudflare" in self.html_content.lower() or "robot musunuz" in self.text_content.lower()
@@ -89,6 +91,8 @@ class PlaywrightScraper:
                             self.html_content = resp.text
                             self.soup = BeautifulSoup(self.html_content, "html.parser")
                             self.text_content = getattr(self.soup, 'text', '')
+                            title_tag = self.soup.find('title')
+                            self.product_title = title_tag.text.split(' - ')[0].strip() if title_tag else "Bilinmeyen Ürün"
                             self.is_waf_blocked = False
                             logger.info("curl_cffi fallback başarılı! WAF aşıldı.")
                         else:

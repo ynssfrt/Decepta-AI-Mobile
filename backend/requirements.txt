@@ -17,3 +17,8 @@ torch==2.2.2
 
 # Web Scraping (Fallback - WAF aşımı için)
 playwright==1.44.0
+
+# Görsel Analiz
+google-generativeai>=0.8.0
+Pillow>=10.0.0
+ImageHash>=4.3.1

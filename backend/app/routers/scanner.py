@@ -24,6 +24,7 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
 
         # ---- VERİ KAYNAĞI SEÇİMİ ----
         detailed_reviews = []
+        product_title = "Bilinmeyen Ürün"
         if extracted_data:
             # Extension veri gönderdi - DOĞRUDAN kullan, scraper'a DÜŞME
             actual_platform_score = float(extracted_data.get("score", 0)) or 4.5
@@ -31,6 +32,7 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
             total_reviews = int(extracted_data.get("total_reviews", 0))
             real_comments = extracted_data.get("comments", [])
             detailed_reviews = extracted_data.get("detailed_reviews", [])
+            product_title = extracted_data.get("product_title", "Bilinmeyen Ürün")
                 
             logger.info(f"[EXT] Score={actual_platform_score}, Ratings={total_ratings}, Reviews={total_reviews}, Comments={len(real_comments)}")
             TASKS_DB[task_id]["current_step"] = "1/3: Extension verileri alındı..."
@@ -53,6 +55,7 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
             actual_platform_score = scraper.extract_score()
             total_ratings, total_reviews = scraper.extract_metrics()
             real_comments = scraper.extract_real_comments()
+            product_title = getattr(scraper, 'product_title', 'Bilinmeyen Ürün')
             
             logger.info(f"[SCRAPER] Score={actual_platform_score}, Ratings={total_ratings}, Yorumlar={len(real_comments)}")
 
@@ -100,7 +103,7 @@ async def _run_analysis_pipeline(task_id: str, url: str, sentiment_analyzer, htm
         if detailed_reviews:
             try:
                 image_analyzer = ImageAnalyzer()
-                img_suspicious = image_analyzer.analyze_images(detailed_reviews)
+                img_suspicious = image_analyzer.analyze_images(detailed_reviews, product_title=product_title)
                 suspicious_list.extend(img_suspicious)
             except Exception as img_err:
                 logger.warning(f"Görüntü analizi başarısız (devam ediliyor): {img_err}")

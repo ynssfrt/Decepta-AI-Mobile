@@ -1339,11 +1339,17 @@ class _HomeScreenState extends State<HomeScreen>
                 color: isDanger ? Colors.redAccent : Colors.greenAccent),
           ),
           const SizedBox(height: 16),
-          Text(
-            "Toplam ${data['total_reviews']} yorum içerisinde ${data['bot_percentage']}% oranında ağ ihlali bulundu.",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                color: isDanger ? Colors.redAccent : Colors.greenAccent),
+          Builder(
+            builder: (context) {
+              int total = int.tryParse(data['total_reviews']?.toString() ?? '0') ?? 0;
+              int analyzed = data['analyzed_reviews_count'] ?? (total > 250 ? 250 : total);
+              return Text(
+                "Toplam $total yorum arasından son $analyzed tanesi incelendi. İhlal oranı: %${data['bot_percentage']}",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: isDanger ? Colors.redAccent : Colors.greenAccent),
+              );
+            }
           ),
         ],
       ),
